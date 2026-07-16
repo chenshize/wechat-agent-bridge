@@ -22,7 +22,7 @@ test("CLI help presents WeClaudex", () => {
     timeout: 5000,
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^WeClaudex 0\.4\.0/m);
+  assert.match(result.stdout, /^WeClaudex 0\.4\.1/m);
   assert.match(result.stdout, /^  weclaudex login$/m);
   assert.doesNotMatch(result.stdout, /legacy CLI alias/);
 });

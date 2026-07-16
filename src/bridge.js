@@ -1287,7 +1287,7 @@ export class WechatAgentBridge {
     if (command.name === "doctor") {
       const lane = loadAgentLane(agentLaneIdentity({ peerId: statePeerId, ...runtime }));
       await this.sendReplyChunks(peerId, context, [
-        "微信桥 0.4.0 诊断：",
+        "微信桥 0.4.1 诊断：",
         `Codex：${commandVersion("codex")}`,
         `Claude Code：${commandVersion("claude")}`,
         `账号：${maskValue(this.account.accountId)}`,
@@ -1609,7 +1609,7 @@ export class WechatAgentBridge {
 export async function runBridge(account) {
   secureStateDirectory();
   const lock = acquireInstanceLock("bridge-global", {
-    version: "0.4.0",
+    version: "0.4.1",
     accountScope: crypto.createHash("sha256").update(String(account.accountId)).digest("hex").slice(0, 12),
   });
   let bridge;
@@ -1622,9 +1622,9 @@ export async function runBridge(account) {
   const onSignal = () => bridge.stop();
   process.once("SIGINT", onSignal);
   process.once("SIGTERM", onSignal);
-  console.log(`[wechat-bridge] 0.4.0 running account=${maskValue(account.accountId)} baseUrl=${bridge.baseUrl}`);
+  console.log(`[wechat-bridge] 0.4.1 running account=${maskValue(account.accountId)} baseUrl=${bridge.baseUrl}`);
   console.log(`[wechat-bridge] state dir: ${stateDir()}`);
-  safeLog("bridge_started", { account: maskValue(account.accountId), version: "0.4.0" });
+  safeLog("bridge_started", { account: maskValue(account.accountId), version: "0.4.1" });
   try {
     await bridge.run();
   } finally {
@@ -1632,6 +1632,6 @@ export async function runBridge(account) {
     process.removeListener("SIGTERM", onSignal);
     await bridge.close().catch((error) => console.warn(`[wechat-bridge] close failed: ${error?.message || error}`));
     releaseInstanceLock(lock);
-    safeLog("bridge_stopped", { account: maskValue(account.accountId), version: "0.4.0" });
+    safeLog("bridge_stopped", { account: maskValue(account.accountId), version: "0.4.1" });
   }
 }

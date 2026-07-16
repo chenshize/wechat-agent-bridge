@@ -27,7 +27,7 @@ import {
 } from "./wechat-api.js";
 
 function usage() {
-  console.log(`WeClaudex 0.4.0
+  console.log(`WeClaudex 0.4.1
 
 Usage:
   weclaudex login
@@ -168,7 +168,7 @@ async function doctor() {
   } catch (error) {
     workspace = `invalid (${error.message})`;
   }
-  console.log("weclaudex=0.4.0");
+  console.log("weclaudex=0.4.1");
   console.log(`node=${process.version}`);
   console.log(`codex=${binaryVersion("codex")}`);
   console.log(`claude=${binaryVersion("claude")}`);

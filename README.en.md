@@ -6,7 +6,8 @@
 
 English | [简体中文](README.md)
 
-[![Version](https://img.shields.io/badge/version-0.4.0-07c160)](CHANGELOG.md)
+[![GitHub Release](https://img.shields.io/github/v/release/chenshize/weclaudex?display_name=tag)](https://github.com/chenshize/weclaudex/releases/latest)
+[![CI](https://github.com/chenshize/weclaudex/actions/workflows/ci.yml/badge.svg)](https://github.com/chenshize/weclaudex/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![License](https://img.shields.io/github/license/chenshize/weclaudex)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/chenshize/weclaudex?style=social)](https://github.com/chenshize/weclaudex/stargazers)
@@ -348,7 +349,7 @@ Settings saved by WeChat commands generally take precedence over default environ
 | --- | --- | --- |
 | `WECHAT_BRIDGE_LOGIN_TIMEOUT_MS` | `480000` | QR login wait time |
 | `WECHAT_BRIDGE_BOT_TYPE` | `3` | ClawBot login bot type; normally unchanged |
-| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.0` | iLink `bot_agent` identifier; normally unchanged |
+| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.1` | iLink `bot_agent` identifier; normally unchanged |
 | `WECHAT_BRIDGE_MAX_OUTBOUND_FILE_BYTES` | `26214400` | `/send` file-selection limit; only lower values are useful |
 | `WECHAT_BRIDGE_ALLOW_SENSITIVE_ARTIFACTS` | `0` | Set to `1` to let `/send` select credential-like paths; high risk |
 | `WECHAT_BRIDGE_TO` | Login user | Recipient for local `send-image` / `send-file` commands only |

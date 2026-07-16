@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-07-16
+
 - Renamed the project, repository, package, and CLI to **WeClaudex** / `weclaudex`.
 - New installations use `~/.weclaudex`; an existing local state directory is reused automatically so saved QR credentials are not lost.
+- Added GitHub Actions checks for supported Node.js versions on Ubuntu and macOS.
+- Added a bridge-level integration test that drives both fake Codex and Claude Code processes through durable inbound handling, result delivery, restart, and native session resumption.
 
 ## 0.4.0
 
