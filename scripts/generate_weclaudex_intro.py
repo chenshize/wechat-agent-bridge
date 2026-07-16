@@ -72,6 +72,57 @@ WORDS = (
     {"text": "WeChat", "x": 158, "color": WECHAT_GREEN, "start": 2.00, "end": 2.76},
 )
 
+ASSEMBLY_MOVE_START = 2.45
+ASSEMBLY_MOVE_END = 4.22
+ASSEMBLY_FINAL_START = 4.10
+ASSEMBLY_FINAL_REVEAL_DURATION = 0.40
+ASSEMBLY_FADE_START = ASSEMBLY_FINAL_START + ASSEMBLY_FINAL_REVEAL_DURATION + FINAL_HOLD_DURATION
+
+ASSEMBLY_WORDS = (
+    {
+        "full": "WeChat",
+        "keep": "WeC",
+        "remove": "hat",
+        "remove_first": False,
+        "x": 158,
+        "color": WECHAT_GREEN,
+        "start": 1.40,
+        "end": 2.12,
+        "drift_x": 13,
+        "drift_y": -19,
+        "target_prefix": "",
+        "arc": -7,
+    },
+    {
+        "full": "Claude Code",
+        "keep": "Claude",
+        "remove": " Code",
+        "remove_first": False,
+        "x": 482,
+        "color": CLAUDE_ORANGE,
+        "start": 0.10,
+        "end": 0.78,
+        "drift_x": -4,
+        "drift_y": 20,
+        "target_prefix": "We",
+        "arc": 6,
+    },
+    {
+        "full": "Codex",
+        "keep": "dex",
+        "remove": "Co",
+        "remove_first": True,
+        "x": 804,
+        "color": CODEX_BLUE,
+        "start": 0.72,
+        "end": 1.45,
+        "drift_x": -13,
+        "drift_y": -19,
+        "target_prefix": "WeClau",
+        "arc": -6,
+    },
+)
+
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
 
@@ -339,6 +390,130 @@ def render_frame(frame_index: int) -> Image.Image:
     return image.convert("RGB")
 
 
+def assembly_drop_state(word: dict[str, object], time_seconds: float) -> tuple[float, int] | None:
+    start = float(word["start"])
+    end = float(word["end"])
+    if time_seconds < start:
+        return None
+    if time_seconds >= end:
+        return DROP_END_Y, 255
+
+    progress = clamp((time_seconds - start) / (end - start))
+    y = lerp(-55, DROP_END_Y, ease_out_bounce(progress))
+    alpha = round(255 * ease_out_cubic(progress / 0.22))
+    return y, alpha
+
+
+def draw_assembly_overlap_flash(image: Image.Image, move_progress: float, unify_progress: float) -> None:
+    arrival = clamp((move_progress - 0.68) / 0.32)
+    strength = ease_out_cubic(arrival) * (1.0 - ease_out_cubic(unify_progress))
+    if strength <= 0.01:
+        return
+
+    font = get_font(WORD_FONT_SIZE)
+    brand_left = (WIDTH - font.getlength("WeClaudex")) / 2.0
+    overlap_centers = (
+        brand_left + font.getlength("We") + font.getlength("C") / 2.0,
+        brand_left + font.getlength("WeClau") + font.getlength("de") / 2.0,
+    )
+
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    radius = lerp(13, 25, strength)
+    for center_x in overlap_centers:
+        draw.ellipse(
+            (center_x - radius, DROP_END_Y - radius, center_x + radius, DROP_END_Y + radius),
+            fill=(*SOFT_WHITE, round(130 * strength)),
+        )
+    image.alpha_composite(layer.filter(ImageFilter.GaussianBlur(12)))
+
+
+def render_assembly_frame(frame_index: int) -> Image.Image:
+    time_seconds = frame_index / FPS
+    image = BACKGROUND.copy()
+    font = get_font(WORD_FONT_SIZE)
+    move_linear = clamp((time_seconds - ASSEMBLY_MOVE_START) / (ASSEMBLY_MOVE_END - ASSEMBLY_MOVE_START))
+    move_progress = ease_in_out_cubic(move_linear)
+    removal_progress = ease_in_out_cubic(clamp((move_linear - 0.12) / 0.72))
+    unify_progress = clamp(
+        (time_seconds - ASSEMBLY_FINAL_START) / ASSEMBLY_FINAL_REVEAL_DURATION
+    )
+    colored_alpha_scale = 1.0 - ease_out_cubic(clamp((unify_progress - 0.12) / 0.88))
+    brand_left = (WIDTH - font.getlength("WeClaudex")) / 2.0
+
+    for word in ASSEMBLY_WORDS:
+        drop_state = assembly_drop_state(word, time_seconds)
+        if drop_state is None:
+            continue
+
+        y, source_alpha = drop_state
+        full = str(word["full"])
+        keep = str(word["keep"])
+        removed = str(word["remove"])
+        color = word["color"]
+        source_left = float(word["x"]) - font.getlength(full) / 2.0
+        if bool(word["remove_first"]):
+            removed_left = source_left
+            keep_left = source_left + font.getlength(removed)
+        else:
+            keep_left = source_left
+            removed_left = source_left + font.getlength(keep)
+
+        target_left = brand_left + font.getlength(str(word["target_prefix"]))
+        keep_x = lerp(keep_left, target_left, move_progress)
+        keep_y = y + math.sin(move_progress * math.pi) * float(word["arc"])
+        keep_alpha = round(source_alpha * colored_alpha_scale)
+        draw_text_glow(
+            image,
+            keep,
+            keep_x,
+            keep_y,
+            color,
+            size=WORD_FONT_SIZE,
+            alpha=keep_alpha,
+            glow_radius=11,
+            anchor="lm",
+        )
+
+        if removal_progress < 1.0:
+            removed_alpha = round(source_alpha * (1.0 - ease_out_cubic(removal_progress)))
+            assembly_delta_x = keep_x - keep_left
+            assembly_delta_y = keep_y - y
+            removed_x = removed_left + assembly_delta_x + float(word["drift_x"]) * removal_progress
+            removed_y = y + assembly_delta_y + float(word["drift_y"]) * removal_progress
+            draw_text_glow(
+                image,
+                removed,
+                removed_x,
+                removed_y,
+                color,
+                size=WORD_FONT_SIZE,
+                alpha=removed_alpha,
+                glow_radius=11,
+                anchor="lm",
+            )
+
+        draw_landing_ripple(image, float(word["x"]), time_seconds - float(word["end"]), color)
+
+    draw_assembly_overlap_flash(image, move_progress, unify_progress)
+
+    if time_seconds >= ASSEMBLY_FINAL_START:
+        final_alpha = round(255 * ease_out_cubic(unify_progress))
+        if time_seconds >= ASSEMBLY_FADE_START:
+            final_alpha = round(
+                final_alpha
+                * (1.0 - clamp((time_seconds - ASSEMBLY_FADE_START) / (DURATION_SECONDS - ASSEMBLY_FADE_START)))
+            )
+        draw_final_brand(image, DROP_END_Y, BRAND_FONT_SIZE, final_alpha)
+
+    if time_seconds >= ASSEMBLY_FADE_START:
+        fade = clamp((time_seconds - ASSEMBLY_FADE_START) / (DURATION_SECONDS - ASSEMBLY_FADE_START))
+        cover = Image.new("RGBA", image.size, (*BACKGROUND_TOP, round(255 * fade)))
+        image.alpha_composite(cover)
+
+    return image.convert("RGB")
+
+
 def build_palette(frames: list[Image.Image]) -> Image.Image:
     sample_times = (0.0, 0.8, 1.55, 2.4, 3.3, 3.8, 4.4, 6.3, 7.55)
     sample_indices = [round(time_seconds * FPS) for time_seconds in sample_times]
@@ -351,8 +526,11 @@ def build_palette(frames: list[Image.Image]) -> Image.Image:
     return palette_source.quantize(colors=256, method=Image.Quantize.MEDIANCUT)
 
 
-def save_contact_sheet(frames: list[Image.Image], path: Path) -> None:
-    times = (0.72, 1.55, 2.40, 3.48, 4.20, 7.00)
+def save_contact_sheet(
+    frames: list[Image.Image],
+    path: Path,
+    times: tuple[float, ...] = (0.72, 1.55, 2.40, 3.48, 4.20, 7.00),
+) -> None:
     sheet = Image.new("RGB", (WIDTH * 3, HEIGHT * 2), BACKGROUND_TOP)
     label_font = get_font(22, regular=True)
     for index, time_seconds in enumerate(times):
@@ -369,9 +547,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--contact-sheet", type=Path)
+    parser.add_argument("--variant", choices=("collision", "assembly"), default="assembly")
     args = parser.parse_args()
 
-    frames = [render_frame(index) for index in range(FRAME_COUNT)]
+    renderer = render_assembly_frame if args.variant == "assembly" else render_frame
+    frames = [renderer(index) for index in range(FRAME_COUNT)]
     palette = build_palette(frames)
     quantized = [
         frame.quantize(palette=palette, dither=Image.Dither.NONE)
@@ -392,7 +572,11 @@ def main() -> None:
     )
 
     if args.contact_sheet:
-        save_contact_sheet(frames, args.contact_sheet)
+        times = (0.60, 1.30, 2.15, 2.82, 3.68, 4.50) if args.variant == "assembly" else None
+        if times is None:
+            save_contact_sheet(frames, args.contact_sheet)
+        else:
+            save_contact_sheet(frames, args.contact_sheet, times)
 
 
 if __name__ == "__main__":
