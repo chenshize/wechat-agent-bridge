@@ -11,20 +11,18 @@ English | [简体中文](README.md)
 
 This is more than a message-forwarding wrapper: real Codex threads and Claude Code sessions resume across switches and restarts, tasks and final replies have durable recovery, attachments are cached safely, and files leave the machine only after an explicit `/send`.
 
-> If this project saves you one remote-desktop session or one wait beside a long-running task, please leave a **Star**. It helps other developers looking for a practical “local Coding Agent in WeChat” discover the project.
-
 > [!WARNING]
 > This is a remote entry point that starts coding agents as your local OS user. A sender allowlist controls who can trigger the bridge; it does not make a dangerous instruction safe. Use a dedicated workspace, keep the default `workspace` access mode, and only enable `/access full` or `WECHAT_BRIDGE_ALLOW_ALL=1` when you fully understand the risk.
 
 This project does not use OpenClaw as its agent runtime and does not import `@tencent-weixin/openclaw-weixin`. It independently implements the small iLink HTTP/CDN protocol surface required by WeChat ClawBot, then runs your locally authenticated `codex` and `claude` CLIs.
 
-## Why install it
+## Core capabilities
 
-- **Keep developing away from the desk:** submit work, follow progress, stop a task, and recover results from WeChat while commuting, meeting, or taking a break.
-- **Use two agents through one entry point:** switch instantly with `/codex` and `/claude-code`; each backend keeps its own native session instead of mixing contexts.
-- **Use phone-native input:** text, screenshots, files, WeChat voice transcripts, and video can enter the same task; rapidly sent context is coalesced automatically.
-- **Do not lose work to a flaky connection:** unstarted tasks, completed replies, and explicitly queued files recover according to separate safety boundaries after a bridge or network failure.
-- **Start constrained and elevate deliberately:** sender allowlists, validated workspaces, `read-only / workspace / full`, explicit `/send`, and sensitive-path blocking reduce remote-operation risk.
+- **Remote task control:** submit work, follow progress, stop execution, retry interrupted tasks, and recover results from WeChat.
+- **Two agents through one entry point:** switch with `/codex` and `/claude-code` while each backend retains its own native session and context.
+- **Multimodal input:** text, screenshots, files, WeChat voice transcripts, and video can enter one task, with rapidly sent context coalesced automatically.
+- **Durable recovery:** unstarted tasks, completed replies, and explicitly queued files recover across bridge restarts and network failures according to separate safety boundaries.
+- **Layered safety controls:** sender allowlists, validated workspaces, `read-only / workspace / full`, explicit `/send`, and sensitive-path blocking constrain remote operations.
 
 A typical flow looks like this:
 
