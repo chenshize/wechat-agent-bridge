@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Renamed the project to **Claudex for WeChat** and the repository/package to `wechat-codex-claude-code` so Codex and Claude Code support is explicit.
-- Added `claudex` and `wechat-codex-claude-code` CLI commands while retaining `wechat-agent-bridge` and `~/.wechat-agent-bridge` for compatibility.
+- Renamed the project, repository, package, and CLI to **WeClaudex** / `weclaudex`.
+- New installations use `~/.weclaudex`; an existing local state directory is reused automatically so saved QR credentials are not lost.
 
 ## 0.4.0
 

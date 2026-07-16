@@ -1,8 +1,8 @@
 # Security Policy / 安全策略
 
-**Claudex for WeChat** 是本地 Coding Agent 的远程入口。安全问题可能导致未授权的本机命令执行、文件读取、凭据泄露或错误的消息/文件投递，请负责任地披露。
+**WeClaudex** 是本地 Coding Agent 的远程入口。安全问题可能导致未授权的本机命令执行、文件读取、凭据泄露或错误的消息/文件投递，请负责任地披露。
 
-**Claudex for WeChat** is a remote entry point to local coding agents. Security issues may lead to unauthorized local execution, file access, credential disclosure, or incorrect message/file delivery; please disclose them responsibly.
+**WeClaudex** is a remote entry point to local coding agents. Security issues may lead to unauthorized local execution, file access, credential disclosure, or incorrect message/file delivery; please disclose them responsibly.
 
 ## 报告漏洞 / Reporting a vulnerability
 

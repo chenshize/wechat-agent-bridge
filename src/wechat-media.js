@@ -5,7 +5,7 @@ import path from "node:path";
 
 export const DEFAULT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
 const PROCESS_UID = typeof process.getuid === "function" ? process.getuid() : "user";
-export const DEFAULT_MEDIA_CACHE_DIR = path.join(os.tmpdir(), `claudex-wechat-media-${PROCESS_UID}`);
+export const DEFAULT_MEDIA_CACHE_DIR = path.join(os.tmpdir(), `weclaudex-media-${PROCESS_UID}`);
 export const DEFAULT_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 export const DEFAULT_MEDIA_MAX_FILES = 100;
 export const DEFAULT_MEDIA_TTL_MS = 24 * 60 * 60 * 1000;

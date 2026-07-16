@@ -1,13 +1,13 @@
-# Claudex for WeChat
+# WeClaudex
 
 [English](README.en.md) | 简体中文
 
 [![Version](https://img.shields.io/badge/version-0.4.0-07c160)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](package.json)
-[![License](https://img.shields.io/github/license/chenshize/wechat-codex-claude-code)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/chenshize/wechat-codex-claude-code?style=social)](https://github.com/chenshize/wechat-codex-claude-code/stargazers)
+[![License](https://img.shields.io/github/license/chenshize/weclaudex)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/chenshize/weclaudex?style=social)](https://github.com/chenshize/weclaudex/stargazers)
 
-**在微信中运行 Codex 和 Claude Code。** 在手机上发送需求、截图、文件、语音或视频，让 Agent 在你自己的电脑和项目目录里工作；随时切换后端、模型、思考级别、工作区和权限，并把结果与产物安全地发回微信。
+**在微信中使用本机的 Claude Code 和 Codex。** 在手机上发送需求、截图、文件、语音或视频，让 Agent 在你自己的电脑和项目目录里工作；随时切换后端、模型、思考级别、工作区和权限，并把结果与产物安全地发回微信。
 
 它不只是把一条消息转给 CLI：真实 Codex thread / Claude Code session 可以跨切换和重启继续，任务与回复有持久恢复机制，附件会安全缓存，文件只会在你明确执行 `/send` 后外发。
 
@@ -80,8 +80,8 @@ Lane 的 key 不包含模型和思考级别，但每个入站任务会把 `provi
 ## 五分钟开始使用
 
 ```bash
-git clone https://github.com/chenshize/wechat-codex-claude-code.git
-cd wechat-codex-claude-code
+git clone https://github.com/chenshize/weclaudex.git
+cd weclaudex
 npm ci
 npm run check
 ```
@@ -105,13 +105,11 @@ WECHAT_BRIDGE_CWD=/absolute/path/to/project npm run run
 也可以直接从 GitHub 安装全局 CLI：
 
 ```bash
-npm install -g git+https://github.com/chenshize/wechat-codex-claude-code.git
-claudex doctor
-claudex login
-WECHAT_BRIDGE_CWD=/absolute/path/to/project claudex run
+npm install -g git+https://github.com/chenshize/weclaudex.git
+weclaudex doctor
+weclaudex login
+WECHAT_BRIDGE_CWD=/absolute/path/to/project weclaudex run
 ```
-
-为兼容已有安装，全局 CLI 仍提供 `wechat-agent-bridge` 别名，状态目录也继续使用 `~/.wechat-agent-bridge`；项目更名不会搬移或复制已有凭据。
 
 源码安装更方便审阅代码、运行测试和参与贡献；全局安装更适合只想快速使用的开发者。
 
@@ -154,14 +152,14 @@ npm run run
 新安装的凭据和状态默认保存在：
 
 ```text
-~/.wechat-agent-bridge
+~/.weclaudex
 ```
 
 可以用 `WECHAT_BRIDGE_STATE_DIR` 指定其他目录。
 
 ### 从 0.2.x 升级
 
-- 如果 `~/.weixin-codex-bridge` 已存在且未显式设置状态目录，0.4.0 会继续使用它；已有账号、token、同步游标、模型设置和旧对话文件不会被搬走或删除。
+- 如果 `~/.weixin-codex-bridge` 或 `~/.wechat-agent-bridge` 已存在且未显式设置状态目录，WeClaudex 会继续使用它；已有账号、token、同步游标、模型设置和旧对话文件不会被搬走或删除。
 - 常用的 `WEIXIN_CODEX_*` 旧环境变量仍作为兼容别名读取；新部署应改用 `WECHAT_BRIDGE_*`。
 - Agent Lane 是 0.4.0 新状态。升级后的第一条消息会创建真实 Codex thread 或 Claude Code session，之后即可跨切换、跨重启恢复。
 - 0.4.0 的桥接默认 access 是 `workspace`，不再默认完全权限。确有需要时在微信中显式执行 `/access full`。
@@ -307,7 +305,7 @@ WECHAT_BRIDGE_TO='user@im.wechat' node src/cli.js send-file /absolute/path/to/re
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `WECHAT_BRIDGE_STATE_DIR` | `~/.wechat-agent-bridge`，有旧目录时沿用旧目录 | 凭据、Lane、peer 设置、游标、去重、durable inbox、outbox、outbound spool、媒体缓存和运行日志目录 |
+| `WECHAT_BRIDGE_STATE_DIR` | `~/.weclaudex`，有旧目录时沿用旧目录 | 凭据、Lane、peer 设置、游标、去重、durable inbox、outbox、outbound spool、媒体缓存和运行日志目录 |
 | `WECHAT_BRIDGE_ACCOUNT_ID` | 最近登录账号 | 多账号时选择要运行的账号 |
 | `WECHAT_BRIDGE_ALLOW_FROM` | 登录返回的 `userId` | 逗号分隔的发送者白名单；会与登录用户合并 |
 | `WECHAT_BRIDGE_ALLOW_ALL` | `0` | `1` 表示接受任意发送者，强烈不建议 |
@@ -346,7 +344,7 @@ WECHAT_BRIDGE_TO='user@im.wechat' node src/cli.js send-file /absolute/path/to/re
 | --- | --- | --- |
 | `WECHAT_BRIDGE_LOGIN_TIMEOUT_MS` | `480000` | 扫码登录等待时间 |
 | `WECHAT_BRIDGE_BOT_TYPE` | `3` | ClawBot 登录 bot type；通常无需修改 |
-| `WECHAT_BRIDGE_BOT_AGENT` | `ClaudexForWeChat/0.4.0` | iLink `bot_agent` 标识；通常无需修改 |
+| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.0` | iLink `bot_agent` 标识；通常无需修改 |
 | `WECHAT_BRIDGE_MAX_OUTBOUND_FILE_BYTES` | `26214400` | `/send` 文件选择上限；只建议向下调整 |
 | `WECHAT_BRIDGE_ALLOW_SENSITIVE_ARTIFACTS` | `0` | `1` 允许 `/send` 选择疑似凭据文件，风险很高 |
 | `WECHAT_BRIDGE_TO` | 登录用户 | 仅用于本机 `send-image` / `send-file` 的接收人 |

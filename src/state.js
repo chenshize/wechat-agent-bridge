@@ -35,11 +35,16 @@ export {
 };
 
 export function stateDir() {
-  const legacyDir = path.join(os.homedir(), ".weixin-codex-bridge");
+  const defaultDir = path.join(os.homedir(), ".weclaudex");
+  const legacyDirs = [
+    path.join(os.homedir(), ".weixin-codex-bridge"),
+    path.join(os.homedir(), ".wechat-agent-bridge"),
+  ];
   return process.env.WECHAT_BRIDGE_STATE_DIR?.trim() ||
     process.env.WEIXIN_CODEX_STATE_DIR?.trim() ||
     process.env.OPENCLAW_STATE_DIR?.trim() ||
-    (fs.existsSync(legacyDir) ? legacyDir : path.join(os.homedir(), ".wechat-agent-bridge"));
+    (fs.existsSync(defaultDir) ? defaultDir : legacyDirs.find((directory) => fs.existsSync(directory))) ||
+    defaultDir;
 }
 
 export function secureStateDirectory() {

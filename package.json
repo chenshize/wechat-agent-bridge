@@ -1,12 +1,12 @@
 {
-  "name": "wechat-codex-claude-code",
+  "name": "weclaudex",
   "version": "0.4.0",
   "private": false,
   "type": "module",
-  "description": "Run Codex and Claude Code from WeChat with resumable sessions, durable queues, safe workspaces, media, and explicit artifact delivery.",
+  "description": "Control your local Claude Code and Codex from WeChat with resumable sessions, durable queues, safe workspaces, media, and explicit artifact delivery.",
   "keywords": [
     "wechat",
-    "claudex",
+    "weclaudex",
     "codex",
     "claude-code",
     "coding-agent",
@@ -16,16 +16,14 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chenshize/wechat-codex-claude-code.git"
+    "url": "git+https://github.com/chenshize/weclaudex.git"
   },
-  "homepage": "https://github.com/chenshize/wechat-codex-claude-code#readme",
+  "homepage": "https://github.com/chenshize/weclaudex#readme",
   "bugs": {
-    "url": "https://github.com/chenshize/wechat-codex-claude-code/issues"
+    "url": "https://github.com/chenshize/weclaudex/issues"
   },
   "bin": {
-    "claudex": "./src/cli.js",
-    "wechat-codex-claude-code": "./src/cli.js",
-    "wechat-agent-bridge": "./src/cli.js"
+    "weclaudex": "./src/cli.js"
   },
   "scripts": {
     "login": "node ./src/cli.js login",

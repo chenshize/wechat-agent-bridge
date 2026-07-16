@@ -1,13 +1,13 @@
-# Claudex for WeChat
+# WeClaudex
 
 English | [简体中文](README.md)
 
 [![Version](https://img.shields.io/badge/version-0.4.0-07c160)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](package.json)
-[![License](https://img.shields.io/github/license/chenshize/wechat-codex-claude-code)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/chenshize/wechat-codex-claude-code?style=social)](https://github.com/chenshize/wechat-codex-claude-code/stargazers)
+[![License](https://img.shields.io/github/license/chenshize/weclaudex)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/chenshize/weclaudex?style=social)](https://github.com/chenshize/weclaudex/stargazers)
 
-**Run Codex and Claude Code from WeChat.** Send requests, screenshots, files, voice, or video from your phone and let an agent work on your own computer and project directory. Switch backends, models, effort, workspaces, and access modes at any time, then safely receive results and artifacts in WeChat.
+**Control your local Claude Code and Codex from WeChat.** Send requests, screenshots, files, voice, or video from your phone and let an agent work on your own computer and project directory. Switch backends, models, effort, workspaces, and access modes at any time, then safely receive results and artifacts in WeChat.
 
 This is more than a message-forwarding wrapper: real Codex threads and Claude Code sessions resume across switches and restarts, tasks and final replies have durable recovery, attachments are cached safely, and files leave the machine only after an explicit `/send`.
 
@@ -80,8 +80,8 @@ Installing only one agent is fine. The other CLI appears as unavailable when inv
 ## Start in five minutes
 
 ```bash
-git clone https://github.com/chenshize/wechat-codex-claude-code.git
-cd wechat-codex-claude-code
+git clone https://github.com/chenshize/weclaudex.git
+cd weclaudex
 npm ci
 npm run check
 ```
@@ -105,13 +105,11 @@ Send `/status` in WeChat, then send your first development task directly. `npm r
 You can also install the CLI globally straight from GitHub:
 
 ```bash
-npm install -g git+https://github.com/chenshize/wechat-codex-claude-code.git
-claudex doctor
-claudex login
-WECHAT_BRIDGE_CWD=/absolute/path/to/project claudex run
+npm install -g git+https://github.com/chenshize/weclaudex.git
+weclaudex doctor
+weclaudex login
+WECHAT_BRIDGE_CWD=/absolute/path/to/project weclaudex run
 ```
-
-For compatibility, the global install still provides `wechat-agent-bridge` as a legacy CLI alias and continues using `~/.wechat-agent-bridge`; renaming the project does not move or copy existing credentials.
 
 The source checkout is easier to audit, test, and contribute to; the global install is convenient when you just want to start using the bridge.
 
@@ -154,14 +152,14 @@ npm run run
 New installations store credentials and state in:
 
 ```text
-~/.wechat-agent-bridge
+~/.weclaudex
 ```
 
 Set `WECHAT_BRIDGE_STATE_DIR` to use another directory.
 
 ### Upgrading from 0.2.x
 
-- If `~/.weixin-codex-bridge` already exists and no state directory is explicitly configured, 0.4.0 continues using it. Existing accounts, tokens, sync cursors, model settings, and legacy conversation files are neither moved nor deleted.
+- If `~/.weixin-codex-bridge` or `~/.wechat-agent-bridge` already exists and no state directory is explicitly configured, WeClaudex continues using it. Existing accounts, tokens, sync cursors, model settings, and legacy conversation files are neither moved nor deleted.
 - Common legacy `WEIXIN_CODEX_*` environment variables remain supported as compatibility aliases. New deployments should use `WECHAT_BRIDGE_*`.
 - Agent Lanes are new 0.4.0 state. The first post-upgrade message creates a real Codex thread or Claude Code session; subsequent switches and restarts can resume it.
 - The bridge now defaults to `workspace` access instead of full access. If full access is intentional, select it explicitly with `/access full`.
@@ -307,7 +305,7 @@ Settings saved by WeChat commands generally take precedence over default environ
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `WECHAT_BRIDGE_STATE_DIR` | `~/.wechat-agent-bridge`, or an existing legacy directory | Credentials, Lanes, peer settings, cursor, dedupe data, durable inbox, outbox, outbound spool, media cache, and run logs |
+| `WECHAT_BRIDGE_STATE_DIR` | `~/.weclaudex`, or an existing legacy directory | Credentials, Lanes, peer settings, cursor, dedupe data, durable inbox, outbox, outbound spool, media cache, and run logs |
 | `WECHAT_BRIDGE_ACCOUNT_ID` | Most recent login | Select the account to run when more than one is saved |
 | `WECHAT_BRIDGE_ALLOW_FROM` | Login `userId` | Comma-separated sender allowlist; merged with the login user |
 | `WECHAT_BRIDGE_ALLOW_ALL` | `0` | Set to `1` to accept any sender; strongly discouraged |
@@ -346,7 +344,7 @@ Settings saved by WeChat commands generally take precedence over default environ
 | --- | --- | --- |
 | `WECHAT_BRIDGE_LOGIN_TIMEOUT_MS` | `480000` | QR login wait time |
 | `WECHAT_BRIDGE_BOT_TYPE` | `3` | ClawBot login bot type; normally unchanged |
-| `WECHAT_BRIDGE_BOT_AGENT` | `ClaudexForWeChat/0.4.0` | iLink `bot_agent` identifier; normally unchanged |
+| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.0` | iLink `bot_agent` identifier; normally unchanged |
 | `WECHAT_BRIDGE_MAX_OUTBOUND_FILE_BYTES` | `26214400` | `/send` file-selection limit; only lower values are useful |
 | `WECHAT_BRIDGE_ALLOW_SENSITIVE_ARTIFACTS` | `0` | Set to `1` to let `/send` select credential-like paths; high risk |
 | `WECHAT_BRIDGE_TO` | Login user | Recipient for local `send-image` / `send-file` commands only |

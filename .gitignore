@@ -7,6 +7,7 @@ node_modules/
 start.sh
 .weixin-codex-bridge/
 .wechat-agent-bridge/
+.weclaudex/
 
 # Logs and editor/OS files
 *.log

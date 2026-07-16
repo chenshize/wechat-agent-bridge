@@ -1,6 +1,6 @@
 # Architecture and safety boundaries
 
-Claudex for WeChat is split into transport, durable coordination, agent adapters, and local safety/storage layers. WeChat protocol data does not become agent-session state, and Codex/Claude-specific event formats do not leak into the durable inbox.
+WeClaudex is split into transport, durable coordination, agent adapters, and local safety/storage layers. WeChat protocol data does not become agent-session state, and Codex/Claude-specific event formats do not leak into the durable inbox.
 
 ```text
 WeChat iLink long poll

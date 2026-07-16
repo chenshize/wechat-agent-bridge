@@ -27,14 +27,14 @@ import {
 } from "./wechat-api.js";
 
 function usage() {
-  console.log(`Claudex for WeChat 0.4.0
+  console.log(`WeClaudex 0.4.0
 
 Usage:
-  claudex login
-  claudex run
-  claudex doctor
-  claudex send-image /absolute/path/to/image.png
-  claudex send-file /absolute/path/to/file.pdf
+  weclaudex login
+  weclaudex run
+  weclaudex doctor
+  weclaudex send-image /absolute/path/to/image.png
+  weclaudex send-file /absolute/path/to/file.pdf
 
 Source checkout:
   npm run login
@@ -43,11 +43,8 @@ Source checkout:
   node src/cli.js send-image /absolute/path/to/image.png
   node src/cli.js send-file /absolute/path/to/file.pdf
 
-Compatibility:
-  wechat-agent-bridge remains available as a legacy CLI alias
-
 Environment:
-  WECHAT_BRIDGE_STATE_DIR       State directory (default ~/.wechat-agent-bridge)
+  WECHAT_BRIDGE_STATE_DIR       State directory (default ~/.weclaudex)
   WECHAT_BRIDGE_ACCOUNT_ID      Account to run (default latest login)
   WECHAT_BRIDGE_ALLOW_FROM      Comma-separated allowed WeChat user ids
   WECHAT_BRIDGE_ALLOW_ALL       Set 1 to accept any sender (not recommended)
@@ -171,7 +168,7 @@ async function doctor() {
   } catch (error) {
     workspace = `invalid (${error.message})`;
   }
-  console.log("claudex-for-wechat=0.4.0");
+  console.log("weclaudex=0.4.0");
   console.log(`node=${process.version}`);
   console.log(`codex=${binaryVersion("codex")}`);
   console.log(`claude=${binaryVersion("claude")}`);
