@@ -1,8 +1,8 @@
 # Contributing / 参与贡献
 
-感谢你改进 `wechat-agent-bridge`。这是一个能够以本地用户身份启动 Coding Agent 的远程入口，因此可靠性、安全边界和向后兼容与功能本身同样重要。
+感谢你改进 **Claudex for WeChat**。这是一个能够以本地用户身份启动 Coding Agent 的远程入口，因此可靠性、安全边界和向后兼容与功能本身同样重要。
 
-Thanks for improving `wechat-agent-bridge`. Because this project remotely launches coding agents as the local OS user, reliability, security boundaries, and backward compatibility matter as much as features.
+Thanks for improving **Claudex for WeChat**. Because this project remotely launches coding agents as the local OS user, reliability, security boundaries, and backward compatibility matter as much as features.
 
 ## 开发流程 / Development workflow
 

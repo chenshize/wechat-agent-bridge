@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Renamed the project to **Claudex for WeChat** and the repository/package to `wechat-codex-claude-code` so Codex and Claude Code support is explicit.
+- Added `claudex` and `wechat-codex-claude-code` CLI commands while retaining `wechat-agent-bridge` and `~/.wechat-agent-bridge` for compatibility.
+
 ## 0.4.0
 
 This release combines the planned 0.3 runtime work and 0.4 workspace/media work.

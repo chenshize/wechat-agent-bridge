@@ -27,14 +27,24 @@ import {
 } from "./wechat-api.js";
 
 function usage() {
-  console.log(`wechat-agent-bridge 0.4.0
+  console.log(`Claudex for WeChat 0.4.0
 
 Usage:
+  claudex login
+  claudex run
+  claudex doctor
+  claudex send-image /absolute/path/to/image.png
+  claudex send-file /absolute/path/to/file.pdf
+
+Source checkout:
   npm run login
   npm run run
   npm run doctor
   node src/cli.js send-image /absolute/path/to/image.png
   node src/cli.js send-file /absolute/path/to/file.pdf
+
+Compatibility:
+  wechat-agent-bridge remains available as a legacy CLI alias
 
 Environment:
   WECHAT_BRIDGE_STATE_DIR       State directory (default ~/.wechat-agent-bridge)
@@ -161,7 +171,7 @@ async function doctor() {
   } catch (error) {
     workspace = `invalid (${error.message})`;
   }
-  console.log("wechat-agent-bridge=0.4.0");
+  console.log("claudex-for-wechat=0.4.0");
   console.log(`node=${process.version}`);
   console.log(`codex=${binaryVersion("codex")}`);
   console.log(`claude=${binaryVersion("claude")}`);
