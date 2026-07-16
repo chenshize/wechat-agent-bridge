@@ -7,19 +7,14 @@
 English | [简体中文](README.md)
 
 [![GitHub Release](https://img.shields.io/github/v/release/chenshize/weclaudex?display_name=tag)](https://github.com/chenshize/weclaudex/releases/latest)
+[![npm](https://img.shields.io/npm/v/weclaudex?logo=npm)](https://www.npmjs.com/package/weclaudex)
 [![CI](https://github.com/chenshize/weclaudex/actions/workflows/ci.yml/badge.svg)](https://github.com/chenshize/weclaudex/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](package.json)
 [![License](https://img.shields.io/github/license/chenshize/weclaudex)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/chenshize/weclaudex?style=social)](https://github.com/chenshize/weclaudex/stargazers)
 
-**Control your local Claude Code and Codex from WeChat.** Send requests, screenshots, files, voice, or video from your phone and let an agent work on your own computer and project directory. Switch backends, models, effort, workspaces, and access modes at any time, then safely receive results and artifacts in WeChat.
+**Control your local Claude Code and Codex from WeChat.** Send requests, screenshots, files, or voice messages from your phone and let an agent work on your own computer and project directory. Switch backends, models, effort, workspaces, and access modes at any time, then safely receive results and artifacts in WeChat.
 
-This is more than a message-forwarding wrapper: real Codex threads and Claude Code sessions resume across switches and restarts, tasks and final replies have durable recovery, attachments are cached safely, and files leave the machine only after an explicit `/send`.
-
-> [!WARNING]
-> This is a remote entry point that starts coding agents as your local OS user. A sender allowlist controls who can trigger the bridge; it does not make a dangerous instruction safe. Use a dedicated workspace, keep the default `workspace` access mode, and only enable `/access full` or `WECHAT_BRIDGE_ALLOW_ALL=1` when you fully understand the risk.
-
-This project does not use OpenClaw as its agent runtime and does not import `@tencent-weixin/openclaw-weixin`. It independently implements the small iLink HTTP/CDN protocol surface required by WeChat ClawBot, then runs your locally authenticated `codex` and `claude` CLIs.
+Real Codex threads and Claude Code sessions resume across switches and restarts. Tasks, replies, and queued files recover durably. Agent artifacts are never sent automatically; sending a file from WeChat requires an explicit `/send`. WeClaudex reuses your locally authenticated CLIs, so the bridge needs no separate model API key.
 
 ## Core capabilities
 
@@ -29,31 +24,97 @@ This project does not use OpenClaw as its agent runtime and does not import `@te
 - **Durable recovery:** unstarted tasks, completed replies, and explicitly queued files recover across bridge restarts and network failures according to separate safety boundaries.
 - **Layered safety controls:** sender allowlists, validated workspaces, `read-only / workspace / full`, explicit `/send`, and sensitive-path blocking constrain remote operations.
 
-A typical flow looks like this:
+## Feature showcase
+
+<p align="center">
+  <img src="docs/images/feature-agent-response.png" width="360" alt="Agent progress and responses in WeChat">
+  <img src="docs/images/feature-model-controls.png" width="360" alt="Model and effort controls in WeChat">
+</p>
+
+## Quick start
+
+### Requirements
+
+- Node.js 22+
+- An installed and authenticated [Codex CLI](https://github.com/openai/codex#quickstart) and/or [Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- Access to WeChat ClawBot under WeChat's Plugins page
+- A dedicated project directory for agent work
+
+Installing only one agent is fine. The other CLI appears as unavailable when invoked or inspected with `/doctor`.
+
+CI currently covers Ubuntu/Linux and macOS. Windows compatibility paths are implemented but not yet included in CI; Windows users should validate through WSL or Git Bash first.
+
+### Install and run
+
+```bash
+npm install -g weclaudex
+weclaudex login
+cd "/absolute/path/to/project"
+weclaudex doctor
+weclaudex run
+```
+
+After scanning the QR code, send `/status` in WeChat, then send your first development task. Keep the computer and bridge process running while using it.
+
+> [!IMPORTANT]
+> WeClaudex starts coding agents as your local OS user. Use a dedicated workspace and keep the default `workspace` access mode. A sender allowlist controls who can trigger the bridge; it does not make dangerous instructions safe. Enable `/access full` or `WECHAT_BRIDGE_ALLOW_ALL=1` only when you fully understand the risk.
+
+## Connect through WeChat ClawBot
+
+WeChat ClawBot is currently required for the WeChat connection. If your WeChat client does not show Plugins or WeChat ClawBot, WeClaudex cannot complete the connection yet.
+
+1. Open the WeChat Plugins page, find WeChat ClawBot, and open its details.
+
+   <p align="center">
+     <img src="docs/images/setup-clawbot-plugin.png" width="360" alt="WeChat ClawBot on the Plugins page">
+   </p>
+
+2. On the computer running the bridge, execute:
+
+```bash
+weclaudex login
+```
+
+   You do not need to run the OpenClaw installation command shown on the ClawBot details page.
+
+3. Tap “开始扫一扫” (Start scanning) on the ClawBot details page, scan the QR code shown in the terminal, and confirm the connection.
+
+   <p align="center">
+     <img src="docs/images/setup-clawbot-scan.png" width="360" alt="WeChat ClawBot details and scan action">
+   </p>
+
+4. After login, start the bridge:
+
+```bash
+cd "/absolute/path/to/project"
+weclaudex run
+```
+
+By default, the bridge only processes messages from the WeChat `userId` returned during QR login. Add any other sender explicitly through `WECHAT_BRIDGE_ALLOW_FROM`.
+
+## Typical workflow
 
 ```text
 /claude-code
-Analyze this error screenshot and propose a fix
+Analyze this error screenshot and suggest a fix
 
 /codex
-Implement the requested change and run the tests
+Independently inspect the same error in the current project, implement the fix, and run the tests
 
 /status
 /artifacts
 /send 1
 ```
 
-## What 0.4.0 provides
+Claude Code and Codex keep separate native sessions and do not automatically share each other's conversation context. Include any required context after switching.
 
-- **Two agents with native session resumption:** Codex threads and Claude Code sessions are saved separately. Switching back invokes each CLI's native resume feature instead of rebuilding context from chat transcripts.
-- **Agent Lane and account isolation:** within each account, every combination of sender, agent, canonical workspace path, and access mode owns a separate Lane. Peer settings, sessions, inboxes, outboxes, dedupe data, and artifact records do not cross account boundaries.
-- **Durable inbound task queue:** a complete server batch is written to the local inbox before its cursor advances. `received` / `queued` work is restored automatically; `running` / `failed` / `interrupted` work is retained for explicit `/retry`. If an Agent has finished but its reply has not been admitted, `completed` replays only the result and never reruns the Agent.
-- **Frozen execution settings and bounded concurrency:** provider, workspace, access, model, and effort are frozen as soon as a message is classified as work, even before an attachment finishes downloading. A sender remains serial, while the installation runs at most two agents at once by default.
-- **Resilient transport:** polling failures use exponential backoff; one bridge process may run for the entire state directory; outbound delivery is rate-spaced, retried within bounds, and persisted to an outbox for redelivery when a fresh context arrives.
-- **Safe workspaces and access modes:** manage validated workspaces with `/cd` and `/ws`, then choose `read-only`, `workspace`, or `full` with `/access`.
-- **Inbound media:** receive and decrypt WeChat images, files, voice, and video. A voice transcript supplied by WeChat is also included as text in the turn.
-- **Explicit artifact delivery:** inspect files from the most recent run with `/artifacts`, then explicitly send one with `/send`. A path mentioned by a model is never sent automatically.
-- **Dynamic status:** `/status`, `/model`, and `/think` report controls for the active agent, including its model, effort, Lane, workspace, access, and queues.
+## Why this is more than message forwarding
+
+- **Native session resumption:** Codex threads and Claude Code sessions are stored separately and resumed through each CLI's native mechanism.
+- **Durable task boundaries:** messages enter a durable inbox; if an Agent finishes before its reply is delivered, only the result is replayed and the task is not executed again.
+- **Frozen execution settings:** agent, workspace, access, model, and effort are frozen when a task is queued, so later setting changes cannot mutate pending work.
+- **Resilient delivery:** polling failures back off and retry, while undelivered replies persist in an outbox until a fresh delivery context arrives.
+- **Explicit artifact egress:** inbound media is cached safely. Agent artifacts must be inspected with `/artifacts` and explicitly sent with `/send` in WeChat; a path mentioned by a model is never sent automatically.
 
 ### How Agent Lanes work
 
@@ -67,92 +128,27 @@ A Codex Lane stores a real `threadId`; a Claude Code Lane stores a real `session
 
 The Lane key does not include model or effort, but every inbound task freezes `provider`, `cwd`, `accessMode`, `model`, and `effort` in the durable inbox. Running `/model`, `/think`, `/cd`, `/access`, or switching agents after a message is queued affects only later messages. Consecutive messages with different frozen snapshots are not merged into one agent turn.
 
-## Feature showcase
-
-<p align="center">
-  <img src="docs/images/feature-agent-response.png" width="360" alt="Agent progress and responses in WeChat">
-  <img src="docs/images/feature-model-controls.png" width="360" alt="Model and effort controls in WeChat">
-</p>
-
-## Requirements
-
-- Node.js 22+
-- An installed and authenticated `codex` and/or `claude` CLI
-- A dedicated project directory for agent work; do not use your home directory, a system directory, or the whole Downloads directory as a workspace
-
-Installing only one agent is fine. The other CLI appears as unavailable when invoked or inspected with `/doctor`.
-
-## Start in five minutes
+## Run from source
 
 ```bash
 git clone https://github.com/chenshize/weclaudex.git
 cd weclaudex
 npm ci
 npm run check
-```
-
-Confirm that at least one authenticated coding-agent CLI is available:
-
-```bash
-codex --version
-claude --version
-```
-
-Then connect WeChat and start the bridge:
-
-```bash
 npm run login
 WECHAT_BRIDGE_CWD=/absolute/path/to/project npm run run
 ```
 
-Send `/status` in WeChat, then send your first development task directly. `npm run check` runs entry-point syntax checks and the complete test suite; `npm run doctor` verifies the account, workspace, Codex CLI, and Claude Code CLI.
-
-You can also install the CLI globally from npm:
-
-```bash
-npm install -g weclaudex
-weclaudex doctor
-weclaudex login
-WECHAT_BRIDGE_CWD=/absolute/path/to/project weclaudex run
-```
-
-The source checkout is easier to audit, test, and contribute to; the npm global install is convenient when you just want to start using the bridge.
-
-## Connect through WeChat ClawBot
-
-1. Open the WeChat Plugins page, find WeChat ClawBot, and open its details.
-
-   <p align="center">
-     <img src="docs/images/setup-clawbot-plugin.png" width="360" alt="WeChat ClawBot on the Plugins page">
-   </p>
-
-2. On the computer running the bridge, execute:
-
-```bash
-npm run login
-```
-
-   You do not need to run the OpenClaw installation command shown on the ClawBot details page.
-
-3. Tap “开始扫一扫” (Start scanning) on the ClawBot details page, scan the QR code shown in the terminal, and confirm the connection.
-
-   <p align="center">
-     <img src="docs/images/setup-clawbot-scan.png" width="360" alt="WeChat ClawBot details and scan action">
-   </p>
-
-4. After login, prepare a dedicated project directory and start the bridge:
-
-```bash
-WECHAT_BRIDGE_CWD=/absolute/path/to/project npm run run
-```
-
-By default, the bridge only processes messages from the WeChat `userId` returned during QR login. Add any other sender explicitly through `WECHAT_BRIDGE_ALLOW_FROM`.
+The source checkout is best for auditing, testing, and contributing. Prefer the global npm installation for normal use.
 
 ## Run and upgrade
 
 ```bash
-npm run run
+cd "/absolute/path/to/project"
+weclaudex run
 ```
+
+The equivalent command from a source checkout is `npm run run`.
 
 New installations store credentials and state in:
 
@@ -292,15 +288,17 @@ The spool and snapshot directories use `0700`; payload and manifest files use `0
 The local `send-image` and `send-file` terminal commands are explicit administrator actions and do not apply the workspace or sensitive-name filter:
 
 ```bash
-node src/cli.js send-image /absolute/path/to/image.png
-node src/cli.js send-file /absolute/path/to/report.pdf
+weclaudex send-image /absolute/path/to/image.png
+weclaudex send-file /absolute/path/to/report.pdf
 ```
 
 They send to the `userId` saved during login by default. Override the recipient for one invocation with:
 
 ```bash
-WECHAT_BRIDGE_TO='user@im.wechat' node src/cli.js send-file /absolute/path/to/report.pdf
+WECHAT_BRIDGE_TO='user@im.wechat' weclaudex send-file /absolute/path/to/report.pdf
 ```
+
+From a source checkout, `node src/cli.js send-image` / `send-file` is also available.
 
 ## Environment variables
 
@@ -357,8 +355,10 @@ Settings saved by WeChat commands generally take precedence over default environ
 ## Diagnostics and local state
 
 ```bash
-npm run doctor
+weclaudex doctor
 ```
+
+The equivalent command from a source checkout is `npm run doctor`.
 
 Terminal diagnostics mask account IDs and never print tokens. Runtime events are written to `<stateDir>/runs/YYYY-MM-DD.jsonl`; peer IDs are hashed, and fields resembling tokens, secrets, passwords, or authorization data are filtered.
 
@@ -374,7 +374,7 @@ media-cache/       inbound attachments; unfinished tasks pin referenced files
 runs/              redacted structured runtime logs
 ```
 
-Version 0.4.0 uses atomic JSON replacement and attempts to set sensitive files to `0600` and directories to `0700`. This reduces partial-state corruption and accidental local disclosure, but it is not a replacement for disk encryption, OS-account isolation, or host security.
+WeClaudex uses atomic JSON replacement and attempts to set sensitive files to `0600` and directories to `0700`. This reduces partial-state corruption and accidental local disclosure, but it is not a replacement for disk encryption, OS-account isolation, or host security.
 
 ## Security boundary
 
@@ -385,7 +385,7 @@ Version 0.4.0 uses atomic JSON replacement and attempts to set sensitive files t
 - `/send` blocks common escapes and sensitive filenames, but cannot detect secrets or personal data inside an ordinary-looking file.
 - The durable inbox prevents silent task loss; it cannot provide exactly-once execution. Before `/retry`, account for file, Git, database, or external API side effects that may already have happened.
 - `outbound-spool/` contains complete copies of files authorized through `/send`; protect them as sensitive data until delivery, clearing, or expiry removes them.
-- Custom CLI argv can bypass the bridge's default access behavior. Validate changes locally with `npm run doctor` and the relevant CLI.
+- Custom CLI argv can bypass the bridge's default access behavior. Validate changes locally with `weclaudex doctor` and the relevant CLI.
 
 Do not paste tokens, account IDs, or raw chat logs into a public issue. Follow the [security policy](SECURITY.md) for private vulnerability reports.
 
@@ -398,13 +398,14 @@ Future releases will focus on completing real developer workflows in WeChat inst
 - provide isolated task workspaces, change summaries, and a safe `/undo`;
 - turn Issue/PR/CI links, error screenshots, and voice into actionable development tasks.
 
-Open an issue to share the workflow you need most. If you would like to implement it, read the [contributing guide](CONTRIBUTING.md) first.
+If WeClaudex solves your remote-development workflow, a Star helps others discover it. Open an issue for real problems and feature requests. If you would like to implement one, read the [contributing guide](CONTRIBUTING.md) first.
 
 ## Notes
 
 - Keep the bridge process running while you want messages delivered to an agent.
+- This project does not use OpenClaw as its agent runtime or directly import `@tencent-weixin/openclaw-weixin`. It independently implements the iLink HTTP/CDN subset required by ClawBot and invokes your locally authenticated `codex` and `claude` CLIs.
 - This is an independent community project and is not affiliated with or endorsed by Tencent, WeChat, Anthropic, or OpenAI.
-- The WeChat iLink/ClawBot protocol may change. For login or delivery failures, run `npm run doctor` and inspect the local run log first.
+- The WeChat iLink/ClawBot protocol may change. For login or delivery failures, run `weclaudex doctor` and inspect the local run log first.
 
 ## License
 
