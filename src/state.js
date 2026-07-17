@@ -20,6 +20,7 @@ import {
 } from "./runtime/access.js";
 import { acquireFileLock } from "./runtime/instance-lock.js";
 import { checkWorkspacePath, resolveWorkspacePath } from "./runtime/workspace.js";
+import { normalizeNotificationMode } from "./notifications.js";
 
 export {
   ACCESS_MODES,
@@ -430,6 +431,7 @@ export function loadPeerRuntime(peerId) {
   const claudeModel = String(stored?.models?.["claude-code"] || loadClaudeModel()).trim() || loadClaudeModel();
   const configuredCodexEffort = String(stored?.efforts?.codex || "").trim().toLowerCase();
   const configuredClaudeEffort = String(stored?.efforts?.["claude-code"] || "").trim().toLowerCase();
+  const notificationMode = normalizeNotificationMode(stored?.notificationMode);
   const codexEfforts = listCodexReasoningEfforts(codexModel);
   const claudeEfforts = listClaudeReasoningEfforts();
   let cwd;
@@ -439,7 +441,7 @@ export function loadPeerRuntime(peerId) {
     cwd = loadActiveWorkspace();
   }
   return {
-    version: 2,
+    version: 3,
     peerId: normalizedPeerId,
     provider,
     cwd,
@@ -456,6 +458,7 @@ export function loadPeerRuntime(peerId) {
         ? configuredClaudeEffort
         : loadClaudeReasoningEffort(),
     },
+    notificationMode,
     createdAt: stored?.createdAt,
     updatedAt: stored?.updatedAt,
   };
@@ -501,13 +504,14 @@ export function savePeerRuntime(peerId, update = {}) {
   }
   const now = new Date().toISOString();
   const next = {
-    version: 2,
+    version: 3,
     peerId: normalizedPeerId,
     provider,
     cwd,
     accessMode,
     models,
     efforts,
+    notificationMode: normalizeNotificationMode(update?.notificationMode, current.notificationMode),
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };
@@ -537,6 +541,10 @@ export function savePeerReasoningEffort(peerId, provider, effort) {
   const normalizedProvider = String(provider || "").trim().toLowerCase();
   if (!AGENT_PROVIDERS.includes(normalizedProvider)) throw new Error(`unsupported agent provider: ${normalizedProvider}`);
   return savePeerRuntime(peerId, { efforts: { [normalizedProvider]: String(effort || "").trim().toLowerCase() } });
+}
+
+export function savePeerNotificationMode(peerId, notificationMode) {
+  return savePeerRuntime(peerId, { notificationMode: normalizeNotificationMode(notificationMode) });
 }
 
 export function clearPeerRuntime(peerId) {

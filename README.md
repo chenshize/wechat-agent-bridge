@@ -24,6 +24,7 @@
 - **持久恢复**：桥重启或网络波动后，未开始的任务、已完成的回复和待发送文件按各自安全边界恢复。
 - **跨设备接力**：查看桥保存的原生 Session，并生成可在电脑终端直接恢复同一会话的命令。
 - **后台常驻**：macOS launchd 与 Linux systemd 用户服务负责开机启动、重启、状态和日志。
+- **微信微监督**：用安静、标准或详细通知控制工具进度和长任务心跳；原生 Agent 请求输入时仍会通知。
 - **分级安全控制**：发送者白名单、安全工作区、`read-only / workspace / full`、显式 `/send` 和敏感路径拦截共同约束远程操作范围。
 
 ## 功能展示
@@ -198,6 +199,9 @@ weclaudex run
 | `/retry` | 按接收顺序重新提交当前发送者的 `failed` / `interrupted` 任务；已入队任务保留冻结配置 |
 | `/sessions` | 查看当前发送者保存的原生 Codex thread 与 Claude Code session |
 | `/resume-command` | 获取当前 Lane 的终端恢复命令；避免终端和微信同时操作同一 Session |
+| `/notify` | 查看当前通知模式和可选项 |
+| `/notify quiet\|normal\|verbose` | 切换为仅关键结果、标准工具进度或详细心跳 |
+| `/watch` | 快速切换到 `verbose`；`/mute` 快速切换到 `quiet` |
 | `/pwd` | 查看当前工作区 |
 | `/cd <path>` | 切换工作区；支持绝对路径和相对当前工作区的路径 |
 | `/ws list` | 列出命名工作区 |
@@ -215,6 +219,14 @@ weclaudex run
 兼容别名：`/claude`、`/models`、`/reasoning`、`/workspace`。Claude Code 的思考级别为 `low`、`medium`、`high`、`xhigh`、`max`；模型支持 `sonnet`、`opus`、`haiku` 等别名，也可以填写 Claude Code 接受的完整模型 ID。Codex 的模型与思考级别来自本机 Codex 模型缓存，实际列表以 `/model`、`/think` 为准。
 
 桥接指令只会在一条**不带附件**的消息中识别。带附件的 `/send` 等文字会作为普通 Agent 请求处理。
+
+### 通知与原生交互
+
+`normal` 是默认通知模式：保留经过合并的工具进度，并把长任务心跳降低到三分钟一次。`verbose` 适合临时观察任务，使用五秒工具进度间隔和 45 秒心跳；`quiet` 不发工具进度和心跳，但最终结果、错误、Agent 请求输入和请求确认仍然发送。
+
+当 Codex 的结构化输出包含输入/审批请求，或 Claude Code 发出 `AskUserQuestion` / `ExitPlanMode` 事件时，WeClaudex 会在微信中显示原生请求和任务编号。桥不会替 Agent 批准权限，也不会模拟其权限引擎。当前非交互 CLI 是否在请求后结束由对应版本决定；你的微信回复会作为同一原生 Session 的下一轮继续，而不是注入仍在运行的工具调用。
+
+标准和详细模式的最终回复包含一行任务回执：短任务编号、Agent、耗时、CLI 报告的 token 用量和最近产物数量。`/tasks` 可以使用同一编号查看持久状态。
 
 ## 工作区与权限控制
 
@@ -363,9 +375,9 @@ WECHAT_BRIDGE_TO='user@im.wechat' weclaudex send-file /absolute/path/to/report.p
 | `WECHAT_BRIDGE_SEND_CRITICAL_RESERVE` | `512` | 为已完成 Agent 回复预留的耐久分片容量；空间不足时不会启动新 Agent |
 | `WECHAT_BRIDGE_REPLY_CHUNK_LENGTH` | `1200` | 长回复分片字符数，最小 200 |
 | `WECHAT_BRIDGE_TYPING_HEARTBEAT_MS` | `15000` | 微信输入状态心跳；`0` 关闭心跳 |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `5000` | 工具进度消息最小间隔 |
+| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `normal: 15000` / `verbose: 5000` | 工具进度消息最小间隔 |
 | `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `3` | 每次工具进度合并的最多项目数 |
-| `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `45000` | 长任务状态提醒间隔；`0` 关闭 |
+| `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `quiet: 0` / `normal: 180000` / `verbose: 45000` | 覆盖长任务状态提醒间隔；`0` 关闭 |
 
 ### 登录、文件和高级设置
 
@@ -419,7 +431,6 @@ WeClaudex 使用原子 JSON 写入并尽量将敏感状态设为 `0600`、目录
 
 后续版本会继续围绕“开发者在微信里监督和接力原生 Agent”，而不是重新实现一套 Agent Harness：
 
-- 把 Agent 原生的等待输入、执行状态和完成证据转成适合微信的通知；
 - 使用另一个 Agent对当前改动执行只读 `/review`，并支持 Codex ↔ Claude Code 轻量任务交接；
 - 自动发现本机 Git 仓库，用项目名而不是手机上难输入的绝对路径切换；
 - 为任务提供隔离工作区、变更摘要和安全 `/undo`；

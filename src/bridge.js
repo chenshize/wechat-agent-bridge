@@ -21,6 +21,14 @@ import { PollBackoff, delay, messageIdentity } from "./poll-runtime.js";
 import { anonymousPeerId, appendRunLog } from "./run-log.js";
 import { JsonPendingStore, SendScheduler } from "./send-scheduler.js";
 import {
+  completionReceipt,
+  formatInteractionNotification,
+  notificationModeLabel,
+  normalizeNotificationMode,
+  progressHeartbeatMs,
+  shouldRelayToolProgress,
+} from "./notifications.js";
+import {
   acquireInstanceLock,
   agentLaneIdentity,
   clearAgentLane,
@@ -45,6 +53,7 @@ import {
   savePeerAccessMode,
   savePeerAgentProvider,
   savePeerModel,
+  savePeerNotificationMode,
   savePeerReasoningEffort,
   savePeerWorkspace,
   saveSyncBuf,
@@ -54,7 +63,7 @@ import {
   loadSyncBuf,
   removeWorkspace,
 } from "./state.js";
-import { findTaskByPublicId, formatTaskDetail, formatTaskList } from "./task-view.js";
+import { findTaskByPublicId, formatTaskDetail, formatTaskList, taskPublicId } from "./task-view.js";
 import { formatSessionList, laneSessionRef as nativeLaneSessionRef, nativeResumeCommand } from "./session-view.js";
 import { VERSION } from "./version.js";
 import {
@@ -215,7 +224,8 @@ export function isMissingSessionError(error, provider) {
 }
 
 export function isMeaningfulAgentEvent(event) {
-  return ["text", "thinking", "tool_use", "tool_result"].includes(event?.type);
+  return ["text", "thinking", "tool_use", "tool_result", "question", "approval_request", "diff", "test_result"]
+    .includes(event?.type);
 }
 
 function friendlyError(error) {
@@ -650,10 +660,26 @@ export class WechatAgentBridge {
     };
   }
 
-  createProgressRelay({ peerId, context, provider, identity, runKey, markOutput, markMeaningfulActivity, shouldSaveSession }) {
+  createProgressRelay({
+    peerId,
+    context,
+    provider,
+    identity,
+    runKey,
+    taskId,
+    notificationMode = "normal",
+    markOutput,
+    markMeaningfulActivity,
+    shouldSaveSession,
+  }) {
     const pending = [];
-    const minIntervalMs = envInteger("WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS", 5000, { min: 500 });
+    const minIntervalMs = envInteger(
+      "WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS",
+      notificationMode === "verbose" ? 5000 : 15_000,
+      { min: 500 },
+    );
     const maxItems = envInteger("WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS", 3, { min: 1 });
+    const seenInteractions = new Set();
     let lastSentAt = 0;
     let timer;
     let closed = false;
@@ -690,7 +716,22 @@ export class WechatAgentBridge {
         saveAgentLaneSession(identity, sessionRef, { source: "stream", runKey });
         savedSessionRef = sessionRef;
       }
-      if (event?.type === "tool_use") {
+      if (["question", "approval_request"].includes(event?.type)) {
+        const interactionKey = `${event.type}:${event.id || event.question || event.message || "unknown"}`;
+        if (!seenInteractions.has(interactionKey)) {
+          seenInteractions.add(interactionKey);
+          const message = formatInteractionNotification(event, providerLabel(provider));
+          if (message) {
+            void this.safeSendText(
+              peerId,
+              context,
+              `${taskId ? `任务 ${taskId}\n` : ""}${message}`,
+              { durable: true },
+            );
+          }
+        }
+      }
+      if (event?.type === "tool_use" && shouldRelayToolProgress(notificationMode)) {
         pending.push(toolProgressText(event.name));
         if (!timer) timer = setTimeout(() => void flush(), 0);
       }
@@ -736,6 +777,8 @@ export class WechatAgentBridge {
       suppressSessionSave: false,
     };
     const batchInboxIds = batch.map((item) => item?.inboxId).filter(Boolean);
+    const taskId = taskPublicId(batchInboxIds[0] || runKey);
+    const notificationMode = normalizeNotificationMode(loadPeerRuntime(statePeerId).notificationMode);
     if (batchInboxIds.length) this.inbox.markMany(batchInboxIds, "running");
     this.activeAgents.set(peerId, taskState);
     let stopFeedback;
@@ -767,12 +810,17 @@ export class WechatAgentBridge {
         provider,
         identity,
         runKey,
+        taskId,
+        notificationMode,
         markOutput: () => { lastOutputAt = Date.now(); },
         markMeaningfulActivity: () => { meaningfulAgentActivity = true; },
         shouldSaveSession: () => !taskState.suppressSessionSave,
       });
       taskState.relay = relay;
-      const progressIntervalMs = envInteger("WECHAT_BRIDGE_PROGRESS_INTERVAL_MS", 45_000, { min: 0 });
+      const progressIntervalMs = progressHeartbeatMs(
+        notificationMode,
+        process.env.WECHAT_BRIDGE_PROGRESS_INTERVAL_MS,
+      );
       progressTimer = progressIntervalMs
         ? setInterval(() => {
             const elapsed = formatElapsed(Date.now() - startedAt);
@@ -780,7 +828,7 @@ export class WechatAgentBridge {
             void this.safeSendText(
               peerId,
               context,
-              `任务进行中，已运行 ${elapsed}。最近 ${idle} 内有执行活动。发送 /stop 可以结束当前任务。`,
+              `任务 ${taskId} 进行中，已运行 ${elapsed}。最近 ${idle} 内有执行活动。发送 /stop 可以结束当前任务。`,
               { durable: false },
             );
           }, progressIntervalMs)
@@ -835,7 +883,28 @@ export class WechatAgentBridge {
         }
       }
 
-      const completedChunks = numberedReplyChunks(result.reply, replyChunkLength);
+      let artifacts = [];
+      try {
+        artifacts = discoverArtifacts(runtime.cwd, { sinceMs: startedAt - 250 });
+        saveRecentArtifacts(statePeerId, runtime.cwd, artifacts, {
+          provider,
+          laneKey: identity.key,
+          runStartedAt: new Date(startedAt).toISOString(),
+        });
+      } catch (artifactError) {
+        console.warn(`[wechat-bridge] artifact discovery failed: ${artifactError?.message || artifactError}`);
+      }
+      const receipt = completionReceipt({
+        taskId,
+        provider: providerLabel(provider),
+        durationMs: Date.now() - startedAt,
+        usage: result.usage,
+        artifactCount: artifacts.length,
+      });
+      const replyWithReceipt = notificationMode === "quiet"
+        ? result.reply
+        : `${result.reply}\n\n${receipt}`;
+      const completedChunks = numberedReplyChunks(replyWithReceipt, replyChunkLength);
       if (batchInboxIds.length) {
         const completedRecord = this.inbox.saveCompletion(batchInboxIds, {
           id: runKey,
@@ -864,12 +933,6 @@ export class WechatAgentBridge {
         });
       }
       if (!lane) clearHistory(statePeerId);
-      const artifacts = discoverArtifacts(runtime.cwd, { sinceMs: startedAt - 250 });
-      saveRecentArtifacts(statePeerId, runtime.cwd, artifacts, {
-        provider,
-        laneKey: identity.key,
-        runStartedAt: new Date(startedAt).toISOString(),
-      });
       if (completionPersisted) {
         completionDelivered = await this.deliverStoredCompletion(
           peerId,
@@ -884,7 +947,7 @@ export class WechatAgentBridge {
           },
         );
       } else {
-        await this.sendReplyChunks(peerId, context, result.reply, {
+        await this.sendReplyChunks(peerId, context, replyWithReceipt, {
           shouldStop: () => taskState.stopRequested,
           critical: true,
           reservationId: finalReplyReservation?.id || "",
@@ -1041,6 +1104,7 @@ export class WechatAgentBridge {
         `当前模型：${runtimeModel(runtime)}`,
         `思考级别：${runtimeEffort(runtime)}`,
         `当前权限：${accessModeLabel(runtime.accessMode)}`,
+        `通知模式：${notificationModeLabel(runtime.notificationMode)}`,
         `工作区：${runtime.cwd}`,
         `Agent Lane：${laneSessionRef(lane) ? `已连接（${maskValue(laneSessionRef(lane))}）` : "待创建"}`,
         `任务队列：${queueStatus.active ? "执行中" : "空闲"}，等待 ${queueStatus.pending} 条`,
@@ -1090,6 +1154,25 @@ export class WechatAgentBridge {
       }
       savePeerReasoningEffort(statePeerId, runtime.provider, effort);
       await this.safeSendText(peerId, context, `已切换 ${providerLabel(runtime.provider)} 思考级别：${effort}`);
+      return;
+    }
+
+    if (["notify", "watch", "mute"].includes(command.name)) {
+      const requested = command.name === "watch" ? "verbose" : command.name === "mute" ? "quiet" : command.argument;
+      if (!requested) {
+        await this.safeSendText(
+          peerId,
+          context,
+          `当前通知：${notificationModeLabel(runtime.notificationMode)}\n可选：quiet、normal、verbose\n示例：/notify normal`,
+        );
+        return;
+      }
+      if (!["quiet", "normal", "verbose"].includes(requested.toLowerCase())) {
+        await this.safeSendText(peerId, context, "不支持的通知模式。可选：quiet、normal、verbose");
+        return;
+      }
+      const saved = savePeerNotificationMode(statePeerId, requested);
+      await this.safeSendText(peerId, context, `已切换通知模式：${notificationModeLabel(saved.notificationMode)}`);
       return;
     }
 

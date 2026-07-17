@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-07-17
+
+- Added per-sender `quiet`, `normal`, and `verbose` notification policies through `/notify`, `/watch`, and `/mute`.
+- Normalized native question, approval-request, diff, and test-result event types without adding a bridge-owned permission engine.
+- Recognized Codex structured input/approval items and Claude Code `AskUserQuestion` / `ExitPlanMode` tool events, forwarding concise prompts to WeChat when upstream emits them.
+- Added opaque task IDs to progress heartbeats and durable completion receipts with Agent, duration, reported token usage, and artifact count.
+- Reduced default normal-mode heartbeats to three minutes; quiet mode suppresses tool progress and heartbeats while retaining final results, failures, and native interaction requests.
+
 ## 0.5.0 - 2026-07-17
 
 - Added `weclaudex init` to inspect the saved WeChat account, local agents, workspace, access mode, and recommended next steps.

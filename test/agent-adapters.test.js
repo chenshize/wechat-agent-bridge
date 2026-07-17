@@ -105,6 +105,19 @@ test("Codex parser discovers a thread and normalizes text, tools and usage", () 
   const usage = normalizeCodexEvent({ type: "turn.completed", usage: { input_tokens: 10 } });
   assert.equal(usage.events[0].type, "usage");
   assert.equal(usage.usage.input_tokens, 10);
+
+  const question = normalizeCodexEvent({
+    type: "item.started",
+    item: { id: "q1", type: "request_user_input", question: "Choose a database" },
+  });
+  assert.equal(question.events[0].type, "question");
+  assert.equal(question.events[0].question, "Choose a database");
+
+  const approval = normalizeCodexEvent({
+    type: "item.started",
+    item: { id: "a1", type: "command_approval", command: "deploy" },
+  });
+  assert.equal(approval.events[0].type, "approval_request");
 });
 
 test("a resumed Codex prompt does not replay bridge history", () => {
@@ -189,6 +202,20 @@ test("Claude parser discovers session, normalizes content and retains result", (
   });
   assert.equal(result.finalText, "最终回复");
   assert.equal(result.usage.output_tokens, 9);
+
+  const interactions = normalizeClaudeEvent({
+    type: "assistant",
+    message: {
+      content: [
+        { type: "tool_use", id: "q1", name: "AskUserQuestion", input: { questions: [{ question: "Which package?" }] } },
+        { type: "tool_use", id: "a1", name: "ExitPlanMode", input: { plan: "Implement the fix" } },
+      ],
+    },
+  });
+  assert.deepEqual(
+    interactions.events.map((event) => event.type),
+    ["tool_use", "question", "tool_use", "approval_request"],
+  );
 });
 
 test("Claude resumed prompt contains only current input and safe attachment paths", () => {

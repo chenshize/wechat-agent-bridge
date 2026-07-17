@@ -102,6 +102,24 @@ function normalizeContentBlocks(content, raw) {
         input: block.input ?? null,
         raw,
       });
+      if (block.name === "AskUserQuestion") {
+        const questions = Array.isArray(block.input?.questions)
+          ? block.input.questions.map((item) => item?.question).filter(Boolean).join("\n")
+          : block.input?.question;
+        events.push({
+          type: "question",
+          id: block.id || "",
+          question: questions || "Claude Code needs input",
+          raw,
+        });
+      } else if (block.name === "ExitPlanMode") {
+        events.push({
+          type: "approval_request",
+          id: block.id || "",
+          message: block.input?.plan || block.input?.reason || "Claude Code has finished planning and requests confirmation",
+          raw,
+        });
+      }
     } else if (block.type === "tool_result") {
       events.push({
         type: "tool_result",

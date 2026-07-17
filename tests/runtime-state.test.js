@@ -32,6 +32,7 @@ import {
   saveAgentLaneSession,
   savePeerRuntime,
   savePeerModel,
+  savePeerNotificationMode,
   savePeerReasoningEffort,
   saveWorkspace,
   secureStateDirectory,
@@ -128,6 +129,8 @@ test("named workspaces and per-peer runtime are persisted safely", () => {
   savePeerReasoningEffort("peer-one", "claude-code", "high");
   assert.equal(loadPeerRuntime("peer-one").models["claude-code"], "peer-one-model");
   assert.equal(loadPeerRuntime("peer-one").efforts["claude-code"], "high");
+  savePeerNotificationMode("peer-one", "quiet");
+  assert.equal(loadPeerRuntime("peer-one").notificationMode, "quiet");
   assert.notEqual(loadPeerRuntime("peer-two").models["claude-code"], "peer-one-model");
   clearPeerRuntime("peer-one");
 

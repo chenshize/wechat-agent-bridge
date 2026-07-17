@@ -24,6 +24,7 @@ Real Codex threads and Claude Code sessions resume across switches and restarts.
 - **Durable recovery:** unstarted tasks, completed replies, and explicitly queued files recover across bridge restarts and network failures according to separate safety boundaries.
 - **Cross-device handoff:** inspect saved native sessions and generate the exact terminal command that resumes the current conversation.
 - **Always-on service:** macOS launchd and Linux systemd user services provide startup, restart, status, and logs.
+- **WeChat micro-supervision:** choose quiet, normal, or verbose notifications for tool progress and long-task heartbeats while native input requests remain visible.
 - **Layered safety controls:** sender allowlists, validated workspaces, `read-only / workspace / full`, explicit `/send`, and sensitive-path blocking constrain remote operations.
 
 ## Feature showcase
@@ -198,6 +199,9 @@ Set `WECHAT_BRIDGE_STATE_DIR` to use another directory.
 | `/retry` | Resubmit this sender's `failed` / `interrupted` tasks in receive order; queued tasks retain their frozen settings |
 | `/sessions` | List native Codex threads and Claude Code sessions saved for this sender |
 | `/resume-command` | Generate the terminal command for the current Lane; avoid driving one native session from terminal and WeChat simultaneously |
+| `/notify` | Show the current notification mode and available values |
+| `/notify quiet\|normal\|verbose` | Select critical results only, standard tool progress, or detailed heartbeats |
+| `/watch` | Switch quickly to `verbose`; `/mute` switches to `quiet` |
 | `/pwd` | Show the current workspace |
 | `/cd <path>` | Change workspace; accepts an absolute path or a path relative to the current workspace |
 | `/ws list` | List named workspaces |
@@ -215,6 +219,14 @@ Set `WECHAT_BRIDGE_STATE_DIR` to use another directory.
 Compatibility aliases are `/claude`, `/models`, `/reasoning`, and `/workspace`. Claude Code effort values are `low`, `medium`, `high`, `xhigh`, and `max`. Its model accepts aliases such as `sonnet`, `opus`, and `haiku`, plus full model IDs accepted by Claude Code. Codex model and effort options come from the local Codex model cache; `/model` and `/think` are authoritative for the current machine.
 
 Bridge commands are recognized only in messages with **no attachments**. Command-looking text sent alongside an attachment is treated as a regular agent request.
+
+### Notifications and native interactions
+
+`normal` is the default: coalesced tool progress remains visible while the long-task heartbeat drops to once every three minutes. `verbose` uses a five-second tool-progress interval and a 45-second heartbeat for temporary observation. `quiet` suppresses tool progress and heartbeats, but final results, errors, native input requests, and confirmation requests still arrive.
+
+When Codex structured output contains an input/approval item, or Claude Code emits `AskUserQuestion` / `ExitPlanMode`, WeClaudex shows the native request and task ID in WeChat. The bridge does not approve permissions for the agent or imitate its permission engine. Whether the current non-interactive CLI turn exits after the request depends on that upstream version; your WeChat reply continues the same native session as its next turn rather than being injected into a still-running tool call.
+
+In normal and verbose mode, the final reply includes a compact receipt with task ID, agent, duration, CLI-reported token usage, and recent artifact count. `/tasks` uses the same ID for durable state inspection.
 
 ## Workspaces and permission control
 
@@ -363,9 +375,9 @@ Settings saved by WeChat commands generally take precedence over default environ
 | `WECHAT_BRIDGE_SEND_CRITICAL_RESERVE` | `512` | Durable chunk capacity reserved for completed Agent replies; a new Agent does not start if it cannot reserve enough |
 | `WECHAT_BRIDGE_REPLY_CHUNK_LENGTH` | `1200` | Long-reply chunk length in characters; minimum 200 |
 | `WECHAT_BRIDGE_TYPING_HEARTBEAT_MS` | `15000` | WeChat typing-state heartbeat; set to `0` to disable the heartbeat |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `5000` | Minimum interval between tool-progress messages |
+| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `normal: 15000` / `verbose: 5000` | Minimum interval between tool-progress messages |
 | `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `3` | Maximum tool-progress items coalesced per update |
-| `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `45000` | Long-running task status interval; set to `0` to disable |
+| `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `quiet: 0` / `normal: 180000` / `verbose: 45000` | Override the long-running task status interval; set to `0` to disable |
 
 ### Login, files, and advanced settings
 
@@ -419,7 +431,6 @@ Do not paste tokens, account IDs, or raw chat logs into a public issue. Follow t
 
 Future releases will focus on completing real developer workflows in WeChat instead of merely adding more chat commands:
 
-- surface native waiting-for-input, execution-state, and completion evidence as concise WeChat notifications;
 - use the other agent for a read-only `/review` of current changes and hand tasks between Codex and Claude Code;
 - discover local Git repositories and switch by project name instead of phone-unfriendly absolute paths;
 - provide isolated task workspaces, change summaries, and a safe `/undo`;

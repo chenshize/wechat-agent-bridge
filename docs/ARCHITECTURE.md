@@ -112,6 +112,10 @@ Switching provider, workspace, or access selects a different conversation rather
 
 Model and effort are intentionally not part of the Lane key, so a new turn can use updated model controls on the same native conversation. Frozen task snapshots ensure an update cannot retroactively change work already in the durable queue.
 
+Notification policy is sender-local UI state, not part of a Lane or frozen execution snapshot. It can change while work is running without changing the Agent, model, access, or workspace selected for that task. Quiet mode suppresses ephemeral tool/heartbeat messages only; durable final replies and normalized native input/confirmation requests keep their delivery guarantees.
+
+The adapter event vocabulary includes `question`, `approval_request`, `diff`, and `test_result` in addition to text/tool/usage events. These events are observations of an upstream harness, not a WeClaudex permission engine. With the current one-turn CLI transports, a user reply continues the saved native session in a later turn; the bridge does not claim to inject an answer into an already blocked upstream tool call.
+
 `/sessions` reads only this sender's account-scoped Lane records and masks native identifiers. `/resume-command` reveals the complete identifier only for the currently selected Lane and produces the provider's native terminal resume command. It does not clone or translate the session. Driving the same native session concurrently from the bridge and a terminal is intentionally discouraged because neither upstream CLI promises multi-writer ordering.
 
 `/tasks` is a read-only view over the existing durable inbox rather than a second task database. Public task IDs are short SHA-256-derived aliases of the raw WeChat message IDs. `/task` resolves a unique prefix and exposes frozen runtime metadata and recovery state without printing the original transport identifier.

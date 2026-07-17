@@ -8,6 +8,8 @@ test("parses commands and aliases without treating normal slash text as a comman
   assert.deepEqual(parseBridgeCommand("/claude"), { name: "claude-code", argument: "", raw: "/claude" });
   assert.deepEqual(parseBridgeCommand("/jobs"), { name: "tasks", argument: "", raw: "/jobs" });
   assert.deepEqual(parseBridgeCommand("/task abc123"), { name: "task", argument: "abc123", raw: "/task abc123" });
+  assert.deepEqual(parseBridgeCommand("/notify quiet"), { name: "notify", argument: "quiet", raw: "/notify quiet" });
+  assert.deepEqual(parseBridgeCommand("/watch"), { name: "watch", argument: "", raw: "/watch" });
   assert.equal(parseBridgeCommand("/unknown value"), null);
   assert.equal(parseBridgeCommand("hello"), null);
 });

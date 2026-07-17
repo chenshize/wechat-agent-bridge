@@ -149,7 +149,23 @@ export function normalizeCodexEvent(raw) {
     const item = raw.item || {};
     const phase = raw.type.split(".")[1];
     const type = String(item.type || "");
-    if (type === "agent_message" && phase === "completed") {
+    if (["request_user_input", "user_input_request", "question"].includes(type) && phase === "started") {
+      events.push({
+        type: "question",
+        id: item.id || "",
+        question: item.question || item.prompt || item.message || itemText(item) || "Codex needs input",
+        raw,
+      });
+    } else if (["approval_request", "command_approval", "file_change_approval"].includes(type) && phase === "started") {
+      events.push({
+        type: "approval_request",
+        id: item.id || "",
+        message: item.reason || item.command || itemText(item) || "Codex requests approval",
+        raw,
+      });
+    } else if (type === "file_change" && phase === "completed") {
+      events.push({ type: "diff", id: item.id || "", output: toolOutput(item), status: item.status || "completed", raw });
+    } else if (type === "agent_message" && phase === "completed") {
       finalText = itemText(item).trim();
       if (finalText) events.push({ type: "text", text: finalText, final: true, raw });
     } else if (type === "reasoning" && phase === "completed") {

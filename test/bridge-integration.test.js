@@ -182,9 +182,12 @@ test("the bridge runs and resumes native Codex and Claude sessions across restar
 
       assert.equal(new InboxStore(account.accountId).get(`${provider}-first`).status, "done");
       assert.equal(loadSyncBuf(account.accountId), "cursor-first");
-      assert.ok(delivered.some((payload) => payload.text === (
-        provider === "codex" ? "Codex first reply" : "Claude first reply"
-      )));
+      const firstReply = delivered.find((payload) => payload.text.startsWith(
+        provider === "codex" ? "Codex first reply" : "Claude first reply",
+      ));
+      assert.ok(firstReply);
+      assert.match(firstReply.text, /✅ (Codex|Claude Code) 已完成/);
+      assert.match(firstReply.text, /任务 [a-f0-9]{8}/);
 
       const identity = agentLaneIdentity({
         peerId: statePeerId,
@@ -208,9 +211,12 @@ test("the bridge runs and resumes native Codex and Claude sessions across restar
 
       assert.equal(new InboxStore(account.accountId).get(`${provider}-second`).status, "done");
       assert.equal(loadSyncBuf(account.accountId), "cursor-second");
-      assert.ok(delivered.some((payload) => payload.text === (
-        provider === "codex" ? "Codex resumed reply" : "Claude resumed reply"
-      )));
+      const resumedReply = delivered.find((payload) => payload.text.startsWith(
+        provider === "codex" ? "Codex resumed reply" : "Claude resumed reply",
+      ));
+      assert.ok(resumedReply);
+      assert.match(resumedReply.text, /✅ (Codex|Claude Code) 已完成/);
+      assert.match(resumedReply.text, /任务 [a-f0-9]{8}/);
 
       const invocations = fs.readFileSync(invocationLog, "utf8")
         .trim()
