@@ -1,6 +1,6 @@
 {
   "name": "weclaudex",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": false,
   "type": "module",
   "description": "Control your local Claude Code and Codex from WeChat with resumable sessions, durable queues, safe workspaces, media, and explicit artifact delivery.",
@@ -39,6 +39,7 @@
     "access": "public"
   },
   "scripts": {
+    "init": "node ./src/cli.js init",
     "login": "node ./src/cli.js login",
     "run": "node ./src/cli.js run",
     "doctor": "node ./src/cli.js doctor",

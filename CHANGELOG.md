@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-07-17
+
+- Added `weclaudex init` to inspect the saved WeChat account, local agents, workspace, access mode, and recommended next steps.
+- Added user-level background service management for macOS launchd and Linux systemd with install, start, stop, restart, status, logs, and uninstall commands.
+- Added `/sessions` and `/resume-command` so bridge-managed native Codex threads and Claude Code sessions are visible and can be continued directly in a terminal.
+- Added `/tasks` and `/task <id>` to expose recent durable inbox state through stable opaque task identifiers without revealing raw WeChat message IDs.
+- Centralized the package, bridge log, diagnostics, lock metadata, and WeChat client user-agent version.
+
 ## 0.4.2 - 2026-07-16
 
 - Published WeClaudex as a compact npm CLI package installable with `npm install -g weclaudex`.

@@ -7,6 +7,8 @@ import qrcode from "qrcode-terminal";
 
 import { runBridge } from "./bridge.js";
 import { commandHelpText } from "./command-parser.js";
+import { controlService, installService, showServiceLogs, uninstallService } from "./service.js";
+import { VERSION } from "./version.js";
 import {
   listAccountIds,
   loadAccessMode,
@@ -27,12 +29,14 @@ import {
 } from "./wechat-api.js";
 
 function usage() {
-  console.log(`WeClaudex 0.4.2
+  console.log(`WeClaudex ${VERSION}
 
 Usage:
+  weclaudex init
   weclaudex login
   weclaudex run
   weclaudex doctor
+  weclaudex service install|start|stop|restart|status|logs|uninstall
   weclaudex send-image /absolute/path/to/image.png
   weclaudex send-file /absolute/path/to/file.pdf
 
@@ -168,7 +172,7 @@ async function doctor() {
   } catch (error) {
     workspace = `invalid (${error.message})`;
   }
-  console.log("weclaudex=0.4.2");
+  console.log(`weclaudex=${VERSION}`);
   console.log(`node=${process.version}`);
   console.log(`codex=${binaryVersion("codex")}`);
   console.log(`claude=${binaryVersion("claude")}`);
@@ -178,6 +182,57 @@ async function doctor() {
   console.log(`hasToken=${Boolean(account?.token)}`);
   console.log(`workspace=${workspace}`);
   console.log(`defaultAccess=${loadAccessMode()}`);
+}
+
+async function initialize() {
+  secureStateDirectory();
+  const account = loadAccount(process.env.WECHAT_BRIDGE_ACCOUNT_ID || process.env.WEIXIN_CODEX_ACCOUNT_ID);
+  const codex = binaryVersion("codex");
+  const claude = binaryVersion("claude");
+  let workspace;
+  try {
+    workspace = loadActiveWorkspace();
+  } catch (error) {
+    workspace = `invalid (${error.message})`;
+  }
+  console.log(`WeClaudex ${VERSION} 初始化检查`);
+  console.log(`状态目录：${stateDir()}`);
+  console.log(`微信账号：${account?.token ? `已连接（${maskValue(account.accountId)}）` : "未连接"}`);
+  console.log(`Codex：${codex}`);
+  console.log(`Claude Code：${claude}`);
+  console.log(`工作区：${workspace}`);
+  console.log(`默认权限：${loadAccessMode()}`);
+  const next = [];
+  if (!account?.token) next.push("weclaudex login");
+  if (codex === "unavailable" && claude === "unavailable") next.push("安装并登录 Codex 或 Claude Code");
+  next.push("weclaudex service install");
+  console.log(`\n下一步：\n${next.map((item, index) => `${index + 1}. ${item}`).join("\n")}`);
+}
+
+async function service(args) {
+  const action = String(args[0] || "status").toLowerCase();
+  if (action === "install") {
+    const result = installService();
+    console.log(`服务已安装并启动：${result.definition}`);
+    return;
+  }
+  if (action === "uninstall") {
+    const result = uninstallService();
+    console.log(`服务已停止并移除：${result.definition}`);
+    return;
+  }
+  if (action === "logs") {
+    showServiceLogs({ follow: args.includes("--follow") || args.includes("-f") });
+    return;
+  }
+  const result = controlService(action);
+  if (action === "status") {
+    console.log(`service=${result.active ? "running" : "stopped"}`);
+    console.log(`definition=${result.definition}`);
+    if (result.detail) console.log(result.detail);
+    return;
+  }
+  console.log(`service=${action}`);
 }
 
 async function sendMediaCommand(filePath, kind) {
@@ -204,9 +259,11 @@ async function run() {
 
 const command = process.argv[2];
 try {
-  if (command === "login") await login();
+  if (command === "init") await initialize();
+  else if (command === "login") await login();
   else if (command === "run") await run();
   else if (command === "doctor") await doctor();
+  else if (command === "service") await service(process.argv.slice(3));
   else if (command === "send-image" || command === "send-file") await sendMediaCommand(process.argv[3], command);
   else {
     usage();

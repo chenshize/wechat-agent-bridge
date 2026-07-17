@@ -3,6 +3,7 @@ const ALIASES = new Map([
   ["reasoning", "think"],
   ["claude", "claude-code"],
   ["workspace", "ws"],
+  ["jobs", "tasks"],
 ]);
 
 export const BRIDGE_COMMANDS = new Set([
@@ -16,6 +17,10 @@ export const BRIDGE_COMMANDS = new Set([
   "reset",
   "stop",
   "queue",
+  "tasks",
+  "task",
+  "sessions",
+  "resume-command",
   "retry",
   "pwd",
   "cd",
@@ -103,6 +108,9 @@ export function commandHelpText() {
     "/reset  等同于 /new",
     "/stop  停止当前任务",
     "/queue  查看等待中的消息",
+    "/tasks · /task <编号>  查看最近任务与持久状态",
+    "/sessions  查看已保存的原生 Agent 会话",
+    "/resume-command  获取当前会话的终端恢复命令",
     "/retry  重新执行上次异常中断的任务",
     "/pwd · /cd <path>  查看或切换安全工作区",
     "/ws list|save|use|remove  管理命名工作区",

@@ -22,6 +22,8 @@ Real Codex threads and Claude Code sessions resume across switches and restarts.
 - **Two agents through one entry point:** switch with `/codex` and `/claude-code` while each backend retains its own native session and context.
 - **Multimodal input:** text, screenshots, files, WeChat voice transcripts, and video can enter one task, with rapidly sent context coalesced automatically.
 - **Durable recovery:** unstarted tasks, completed replies, and explicitly queued files recover across bridge restarts and network failures according to separate safety boundaries.
+- **Cross-device handoff:** inspect saved native sessions and generate the exact terminal command that resumes the current conversation.
+- **Always-on service:** macOS launchd and Linux systemd user services provide startup, restart, status, and logs.
 - **Layered safety controls:** sender allowlists, validated workspaces, `read-only / workspace / full`, explicit `/send`, and sensitive-path blocking constrain remote operations.
 
 ## Feature showcase
@@ -48,13 +50,14 @@ CI currently covers Ubuntu/Linux and macOS. Windows compatibility paths are impl
 
 ```bash
 npm install -g weclaudex
+weclaudex init
 weclaudex login
 cd "/absolute/path/to/project"
 weclaudex doctor
-weclaudex run
+weclaudex service install
 ```
 
-After scanning the QR code, send `/status` in WeChat, then send your first development task. Keep the computer and bridge process running while using it.
+After scanning the QR code, send `/status` in WeChat, then send your first development task. You can keep using `weclaudex run` in the foreground instead of installing the background service.
 
 > [!IMPORTANT]
 > WeClaudex starts coding agents as your local OS user. Use a dedicated workspace and keep the default `workspace` access mode. A sender allowlist controls who can trigger the bridge; it does not make dangerous instructions safe. Enable `/access full` or `WECHAT_BRIDGE_ALLOW_ALL=1` only when you fully understand the risk.
@@ -87,7 +90,7 @@ weclaudex login
 
 ```bash
 cd "/absolute/path/to/project"
-weclaudex run
+weclaudex service install
 ```
 
 By default, the bridge only processes messages from the WeChat `userId` returned during QR login. Add any other sender explicitly through `WECHAT_BRIDGE_ALLOW_FROM`.
@@ -190,7 +193,11 @@ Set `WECHAT_BRIDGE_STATE_DIR` to use another directory.
 | `/reset` | Alias for `/new` |
 | `/stop` | Stop the active run and cancel unprocessed inbound work plus completed replies not yet admitted by the outbox; keep the current Lane and do not delete already-admitted result/file deliveries |
 | `/queue` | Show active-task, queued-input, interrupted-task, and pending-outbound counts |
+| `/tasks` | List recent durable tasks with opaque short IDs; `/jobs` is an alias |
+| `/task <id>` | Show the task state, agent, workspace, access, model, and latest error |
 | `/retry` | Resubmit this sender's `failed` / `interrupted` tasks in receive order; queued tasks retain their frozen settings |
+| `/sessions` | List native Codex threads and Claude Code sessions saved for this sender |
+| `/resume-command` | Generate the terminal command for the current Lane; avoid driving one native session from terminal and WeChat simultaneously |
 | `/pwd` | Show the current workspace |
 | `/cd <path>` | Change workspace; accepts an absolute path or a path relative to the current workspace |
 | `/ws list` | List named workspaces |
@@ -366,7 +373,7 @@ Settings saved by WeChat commands generally take precedence over default environ
 | --- | --- | --- |
 | `WECHAT_BRIDGE_LOGIN_TIMEOUT_MS` | `480000` | QR login wait time |
 | `WECHAT_BRIDGE_BOT_TYPE` | `3` | ClawBot login bot type; normally unchanged |
-| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.2` | iLink `bot_agent` identifier; normally unchanged |
+| `WECHAT_BRIDGE_BOT_AGENT` | current `WeClaudex/<version>` | iLink `bot_agent` identifier; normally unchanged |
 | `WECHAT_BRIDGE_MAX_OUTBOUND_FILE_BYTES` | `26214400` | `/send` file-selection limit; only lower values are useful |
 | `WECHAT_BRIDGE_ALLOW_SENSITIVE_ARTIFACTS` | `0` | Set to `1` to let `/send` select credential-like paths; high risk |
 | `WECHAT_BRIDGE_TO` | Login user | Recipient for local `send-image` / `send-file` commands only |
@@ -412,7 +419,8 @@ Do not paste tokens, account IDs, or raw chat logs into a public issue. Follow t
 
 Future releases will focus on completing real developer workflows in WeChat instead of merely adding more chat commands:
 
-- use the other agent for a read-only `/review` of recent changes and hand tasks between Codex and Claude Code;
+- surface native waiting-for-input, execution-state, and completion evidence as concise WeChat notifications;
+- use the other agent for a read-only `/review` of current changes and hand tasks between Codex and Claude Code;
 - discover local Git repositories and switch by project name instead of phone-unfriendly absolute paths;
 - provide isolated task workspaces, change summaries, and a safe `/undo`;
 - turn Issue/PR/CI links, error screenshots, and voice into actionable development tasks.

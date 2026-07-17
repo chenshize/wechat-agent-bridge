@@ -339,6 +339,12 @@ export class InboxStore {
       .sort((a, b) => a.receivedAt - b.receivedAt);
   }
 
+  list(peerId) {
+    return this.#load()
+      .filter((record) => !peerId || String(record.message?.from_user_id || "") === String(peerId))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
   protectedAttachmentPaths() {
     const result = new Set();
     for (const record of this.#load()) {

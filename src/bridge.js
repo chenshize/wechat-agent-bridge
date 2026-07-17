@@ -30,6 +30,7 @@ import {
   listClaudeReasoningEfforts,
   listCodexModels,
   listCodexReasoningEfforts,
+  listAgentLanes,
   listWorkspaces,
   loadAgentLane,
   loadClaudeModel,
@@ -53,6 +54,9 @@ import {
   loadSyncBuf,
   removeWorkspace,
 } from "./state.js";
+import { findTaskByPublicId, formatTaskDetail, formatTaskList } from "./task-view.js";
+import { formatSessionList, laneSessionRef as nativeLaneSessionRef, nativeResumeCommand } from "./session-view.js";
+import { VERSION } from "./version.js";
 import {
   DEFAULT_BASE_URL,
   MESSAGE_TYPE,
@@ -1102,6 +1106,46 @@ export class WechatAgentBridge {
       return;
     }
 
+    if (command.name === "tasks") {
+      await this.sendReplyChunks(peerId, context, formatTaskList(this.inbox.list(peerId)));
+      return;
+    }
+
+    if (command.name === "task") {
+      if (!command.argument) {
+        await this.sendReplyChunks(peerId, context, "用法：/task <编号>\n先发送 /tasks 查看最近任务编号。");
+        return;
+      }
+      const record = findTaskByPublicId(this.inbox.list(peerId), command.argument);
+      await this.sendReplyChunks(peerId, context, formatTaskDetail(record));
+      return;
+    }
+
+    if (command.name === "sessions") {
+      await this.sendReplyChunks(
+        peerId,
+        context,
+        formatSessionList(listAgentLanes({ peerId: statePeerId })),
+      );
+      return;
+    }
+
+    if (command.name === "resume-command") {
+      const identity = agentLaneIdentity({ peerId: statePeerId, ...runtime });
+      const lane = loadAgentLane(identity);
+      const commandText = nativeResumeCommand(lane);
+      if (!nativeLaneSessionRef(lane) || !commandText) {
+        await this.safeSendText(peerId, context, "当前 Lane 还没有可恢复的原生会话。先发送一个任务，Agent 返回 session 后再试。");
+        return;
+      }
+      await this.sendReplyChunks(
+        peerId,
+        context,
+        `在当前项目的终端执行：\n\n${commandText}\n\n该命令会直接连接原生 Agent 会话；终端和微信不要同时向同一会话发送任务。`,
+      );
+      return;
+    }
+
     if (command.name === "retry") {
       // v0.3 inbox records did not persist whether a message was a control
       // command. Classify those legacy records before offering retries so a
@@ -1287,7 +1331,7 @@ export class WechatAgentBridge {
     if (command.name === "doctor") {
       const lane = loadAgentLane(agentLaneIdentity({ peerId: statePeerId, ...runtime }));
       await this.sendReplyChunks(peerId, context, [
-        "微信桥 0.4.2 诊断：",
+        `微信桥 ${VERSION} 诊断：`,
         `Codex：${commandVersion("codex")}`,
         `Claude Code：${commandVersion("claude")}`,
         `账号：${maskValue(this.account.accountId)}`,
@@ -1609,7 +1653,7 @@ export class WechatAgentBridge {
 export async function runBridge(account) {
   secureStateDirectory();
   const lock = acquireInstanceLock("bridge-global", {
-    version: "0.4.2",
+    version: VERSION,
     accountScope: crypto.createHash("sha256").update(String(account.accountId)).digest("hex").slice(0, 12),
   });
   let bridge;
@@ -1622,9 +1666,9 @@ export async function runBridge(account) {
   const onSignal = () => bridge.stop();
   process.once("SIGINT", onSignal);
   process.once("SIGTERM", onSignal);
-  console.log(`[wechat-bridge] 0.4.2 running account=${maskValue(account.accountId)} baseUrl=${bridge.baseUrl}`);
+  console.log(`[wechat-bridge] ${VERSION} running account=${maskValue(account.accountId)} baseUrl=${bridge.baseUrl}`);
   console.log(`[wechat-bridge] state dir: ${stateDir()}`);
-  safeLog("bridge_started", { account: maskValue(account.accountId), version: "0.4.2" });
+  safeLog("bridge_started", { account: maskValue(account.accountId), version: VERSION });
   try {
     await bridge.run();
   } finally {
@@ -1632,6 +1676,6 @@ export async function runBridge(account) {
     process.removeListener("SIGTERM", onSignal);
     await bridge.close().catch((error) => console.warn(`[wechat-bridge] close failed: ${error?.message || error}`));
     releaseInstanceLock(lock);
-    safeLog("bridge_stopped", { account: maskValue(account.accountId), version: "0.4.2" });
+    safeLog("bridge_stopped", { account: maskValue(account.accountId), version: VERSION });
   }
 }

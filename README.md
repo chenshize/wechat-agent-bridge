@@ -22,6 +22,8 @@
 - **双 Agent 单入口**：用 `/codex` 与 `/claude-code` 切换后端，分别保留各自的原生会话与上下文。
 - **多模态输入**：文本、截图、文件、微信语音转写和视频可以进入同一任务，连续发送的上下文会自动合并。
 - **持久恢复**：桥重启或网络波动后，未开始的任务、已完成的回复和待发送文件按各自安全边界恢复。
+- **跨设备接力**：查看桥保存的原生 Session，并生成可在电脑终端直接恢复同一会话的命令。
+- **后台常驻**：macOS launchd 与 Linux systemd 用户服务负责开机启动、重启、状态和日志。
 - **分级安全控制**：发送者白名单、安全工作区、`read-only / workspace / full`、显式 `/send` 和敏感路径拦截共同约束远程操作范围。
 
 ## 功能展示
@@ -48,13 +50,14 @@
 
 ```bash
 npm install -g weclaudex
+weclaudex init
 weclaudex login
 cd "/absolute/path/to/project"
 weclaudex doctor
-weclaudex run
+weclaudex service install
 ```
 
-扫码连接后，在微信中发送 `/status`，再发送第一个开发任务。使用期间电脑和桥接进程需要保持运行。
+扫码连接后，在微信中发送 `/status`，再发送第一个开发任务。若不希望安装后台服务，也可以继续使用前台命令 `weclaudex run`。
 
 > [!IMPORTANT]
 > WeClaudex 会以你的本地用户身份启动 Coding Agent。请使用专用工作区并保留默认的 `workspace` access；发送者白名单只能限制谁能触发桥接，不能让危险指令本身变安全。仅在完全理解风险时启用 `/access full` 或 `WECHAT_BRIDGE_ALLOW_ALL=1`。
@@ -87,7 +90,7 @@ weclaudex login
 
 ```bash
 cd "/absolute/path/to/project"
-weclaudex run
+weclaudex service install
 ```
 
 默认只处理扫码登录返回的微信 `userId` 发来的消息。其他发送者必须显式加入 `WECHAT_BRIDGE_ALLOW_FROM`。
@@ -190,7 +193,11 @@ weclaudex run
 | `/reset` | `/new` 的别名 |
 | `/stop` | 停止当前任务，取消尚未执行的入站任务和仍未被 outbox 接纳的完成回复；不会清除当前 Lane，也不会删除已经耐久接纳的待补发结果或文件 |
 | `/queue` | 查看当前任务、等待消息、异常中断和待补发消息数量 |
+| `/tasks` | 查看最近持久任务及其短编号；`/jobs` 是兼容别名 |
+| `/task <编号>` | 查看任务状态、Agent、工作区、权限、模型和最近错误 |
 | `/retry` | 按接收顺序重新提交当前发送者的 `failed` / `interrupted` 任务；已入队任务保留冻结配置 |
+| `/sessions` | 查看当前发送者保存的原生 Codex thread 与 Claude Code session |
+| `/resume-command` | 获取当前 Lane 的终端恢复命令；避免终端和微信同时操作同一 Session |
 | `/pwd` | 查看当前工作区 |
 | `/cd <path>` | 切换工作区；支持绝对路径和相对当前工作区的路径 |
 | `/ws list` | 列出命名工作区 |
@@ -366,7 +373,7 @@ WECHAT_BRIDGE_TO='user@im.wechat' weclaudex send-file /absolute/path/to/report.p
 | --- | --- | --- |
 | `WECHAT_BRIDGE_LOGIN_TIMEOUT_MS` | `480000` | 扫码登录等待时间 |
 | `WECHAT_BRIDGE_BOT_TYPE` | `3` | ClawBot 登录 bot type；通常无需修改 |
-| `WECHAT_BRIDGE_BOT_AGENT` | `WeClaudex/0.4.2` | iLink `bot_agent` 标识；通常无需修改 |
+| `WECHAT_BRIDGE_BOT_AGENT` | 当前 `WeClaudex/<version>` | iLink `bot_agent` 标识；通常无需修改 |
 | `WECHAT_BRIDGE_MAX_OUTBOUND_FILE_BYTES` | `26214400` | `/send` 文件选择上限；只建议向下调整 |
 | `WECHAT_BRIDGE_ALLOW_SENSITIVE_ARTIFACTS` | `0` | `1` 允许 `/send` 选择疑似凭据文件，风险很高 |
 | `WECHAT_BRIDGE_TO` | 登录用户 | 仅用于本机 `send-image` / `send-file` 的接收人 |
@@ -410,9 +417,10 @@ WeClaudex 使用原子 JSON 写入并尽量将敏感状态设为 `0600`、目录
 
 ## Roadmap
 
-后续版本会优先围绕“开发者在微信里真正完成一次任务闭环”，而不是单纯增加更多聊天指令：
+后续版本会继续围绕“开发者在微信里监督和接力原生 Agent”，而不是重新实现一套 Agent Harness：
 
-- 使用另一个 Agent 对最近改动执行只读 `/review`，并支持 Codex ↔ Claude Code 任务交接；
+- 把 Agent 原生的等待输入、执行状态和完成证据转成适合微信的通知；
+- 使用另一个 Agent对当前改动执行只读 `/review`，并支持 Codex ↔ Claude Code 轻量任务交接；
 - 自动发现本机 Git 仓库，用项目名而不是手机上难输入的绝对路径切换；
 - 为任务提供隔离工作区、变更摘要和安全 `/undo`；
 - 把 Issue/PR/CI 链接、报错截图和语音整理成可执行的开发任务。

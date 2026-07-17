@@ -9,6 +9,7 @@ import {
   normalizeCdnBaseUrl,
   safeBasename,
 } from "./wechat-media.js";
+import { USER_AGENT } from "./version.js";
 
 export const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
 export const CDN_BASE_URL = DEFAULT_CDN_BASE_URL;
@@ -19,7 +20,7 @@ export const MESSAGE_ITEM_TYPE = Object.freeze({ TEXT: 1, IMAGE: 2, VOICE: 3, FI
 export const UPLOAD_MEDIA_TYPE = Object.freeze({ IMAGE: 1, VIDEO: 2, FILE: 3, VOICE: 4 });
 
 const CLIENT_VERSION = buildClientVersion("2.4.6");
-const BOT_AGENT = process.env.WECHAT_BRIDGE_BOT_AGENT || process.env.WEIXIN_CODEX_BOT_AGENT || "WeClaudex/0.4.2";
+const BOT_AGENT = process.env.WECHAT_BRIDGE_BOT_AGENT || process.env.WEIXIN_CODEX_BOT_AGENT || USER_AGENT;
 
 export class WechatApiError extends Error {
   constructor(message, {

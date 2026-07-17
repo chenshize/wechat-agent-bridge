@@ -29,6 +29,8 @@ Atomic private state, installation lock, dedupe data and redacted logs
 
 ## Installation and account isolation
 
+The CLI can install the bridge as a user-level background service. macOS uses a per-user launchd agent and Linux uses a per-user systemd unit; neither path requires a root service. The generated definition pins the current Node executable, packaged CLI path, canonical active workspace, and state directory. Service logs remain local. Reinstall after moving the Node or WeClaudex installation so these absolute paths stay valid.
+
 One running bridge is allowed for an entire state directory. `runBridge` acquires a global `bridge-global` lock before constructing account runtime state, so selecting a different `WECHAT_BRIDGE_ACCOUNT_ID` does not allow a second process in the same installation. Running accounts in parallel requires fully separate `WECHAT_BRIDGE_STATE_DIR` values.
 
 The selected account forms an outer namespace around execution state:
@@ -109,6 +111,10 @@ A Lane is keyed within its account namespace by:
 Switching provider, workspace, or access selects a different conversation rather than mixing incompatible state. `/new` archives and clears the selected Lane. The bridge stores the native Codex thread ID or Claude Code session ID; manual transcript replay remains only as a one-time compatibility path for pre-0.3 state.
 
 Model and effort are intentionally not part of the Lane key, so a new turn can use updated model controls on the same native conversation. Frozen task snapshots ensure an update cannot retroactively change work already in the durable queue.
+
+`/sessions` reads only this sender's account-scoped Lane records and masks native identifiers. `/resume-command` reveals the complete identifier only for the currently selected Lane and produces the provider's native terminal resume command. It does not clone or translate the session. Driving the same native session concurrently from the bridge and a terminal is intentionally discouraged because neither upstream CLI promises multi-writer ordering.
+
+`/tasks` is a read-only view over the existing durable inbox rather than a second task database. Public task IDs are short SHA-256-derived aliases of the raw WeChat message IDs. `/task` resolves a unique prefix and exposes frozen runtime metadata and recovery state without printing the original transport identifier.
 
 ## Outbound scheduling and content snapshots
 
