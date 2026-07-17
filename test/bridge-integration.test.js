@@ -176,10 +176,17 @@ test("the bridge runs and resumes native Codex and Claude sessions across restar
       });
 
       await bridge.processUpdateResponse({
+        msgs: [inboundMessage(provider, "watch-mode", "/watch")],
+        get_updates_buf: "cursor-watch-mode",
+      });
+      assert.equal(bridge.notificationOverrides.get("owner"), "verbose");
+
+      await bridge.processUpdateResponse({
         msgs: [inboundMessage(provider, "first", "first integration task")],
         get_updates_buf: "cursor-first",
       });
       await bridge.taskQueue.waitForIdle("owner");
+      assert.equal(bridge.notificationOverrides.has("owner"), false);
 
       assert.equal(new InboxStore(account.accountId).get(`${provider}-first`).status, "done");
       assert.equal(loadSyncBuf(account.accountId), "cursor-first");

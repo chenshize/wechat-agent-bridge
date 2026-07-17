@@ -14,7 +14,7 @@ import {
 } from "../src/bridge.js";
 import { InboxStore } from "../src/inbox-store.js";
 import { stageOutboundArtifact } from "../src/outbound-spool.js";
-import { loadSyncBuf } from "../src/state.js";
+import { agentLaneIdentity, loadPeerRuntime, loadSyncBuf } from "../src/state.js";
 
 function isolatedBridge(t, suffix = "bridge") {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), `wechat-${suffix}-`));
@@ -66,6 +66,82 @@ test("reply normalization and chunking preserve all content", () => {
   const chunks = splitReplyText(source, 20);
   assert.ok(chunks.every((chunk) => chunk.length <= 20));
   assert.equal(chunks.join("").replace(/\n/g, ""), normalizeReplyText(source).replace(/\n/g, ""));
+});
+
+test("watch and mute are one-task overrides while notify persists the default", async (t) => {
+  const { bridge } = isolatedBridge(t, "notification-overrides");
+  await bridge.handleCommand("owner", {}, { name: "watch", argument: "" });
+  assert.equal(bridge.notificationOverrides.get("owner"), "verbose");
+  assert.equal(loadPeerRuntime(bridge.statePeerId("owner")).notificationMode, "normal");
+
+  let activeMode = "";
+  bridge.activeAgents.set("owner", {
+    temporaryNotificationMode: false,
+    setNotificationMode(mode) { activeMode = mode; },
+  });
+  await bridge.handleCommand("owner", {}, { name: "mute", argument: "" });
+  assert.equal(activeMode, "quiet");
+  assert.equal(bridge.activeAgents.get("owner").temporaryNotificationMode, true);
+
+  await bridge.handleCommand("owner", {}, { name: "notify", argument: "verbose" });
+  assert.equal(activeMode, "verbose");
+  assert.equal(bridge.notificationOverrides.has("owner"), false);
+  assert.equal(loadPeerRuntime(bridge.statePeerId("owner")).notificationMode, "verbose");
+});
+
+test("progress relay bounds high-volume operations and sends failures immediately", async (t) => {
+  const { bridge } = isolatedBridge(t, "progress-relay");
+  const previousNormalInterval = process.env.WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS;
+  const previousVerboseInterval = process.env.WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS;
+  process.env.WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS = "1000";
+  process.env.WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS = "500";
+  t.after(() => {
+    if (previousNormalInterval === undefined) delete process.env.WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS;
+    else process.env.WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS = previousNormalInterval;
+    if (previousVerboseInterval === undefined) delete process.env.WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS;
+    else process.env.WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS = previousVerboseInterval;
+  });
+
+  const sent = [];
+  bridge.safeSendText = async (_peerId, _context, text, options = {}) => {
+    sent.push({ text, options });
+    return true;
+  };
+  const relay = bridge.createProgressRelay({
+    peerId: "owner",
+    context: {},
+    provider: "codex",
+    identity: agentLaneIdentity({
+      peerId: bridge.statePeerId("owner"),
+      provider: "codex",
+      cwd: process.cwd(),
+      accessMode: "workspace",
+    }),
+    runKey: "run-progress",
+    taskId: "task1234",
+    notificationMode: "normal",
+  });
+  relay.onEvent({ type: "tool_use", id: "command", name: "command_execution", input: "npm test" });
+  for (let index = 0; index < 300; index += 1) {
+    relay.onEvent({ type: "tool_use", id: `read-${index}`, name: "Read", input: { file_path: `src/${index}.js` } });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1150));
+  assert.equal(sent.length, 2);
+  assert.match(sent[0].text, /npm test/);
+  assert.match(sent[1].text, /读取 300/);
+
+  relay.onEvent({
+    type: "tool_result",
+    id: "command",
+    name: "command_execution",
+    status: "failed",
+    raw: { item: { exit_code: 1 } },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(sent.length, 3);
+  assert.match(sent[2].text, /命令执行失败/);
+  assert.equal(sent[2].options.durable, true);
+  relay.close();
 });
 
 test("a full poll batch is durable before stop interrupts dispatch", async (t) => {

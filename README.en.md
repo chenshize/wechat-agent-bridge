@@ -202,8 +202,9 @@ Set `WECHAT_BRIDGE_STATE_DIR` to use another directory.
 | `/sessions` | List native Codex threads and Claude Code sessions saved for this sender |
 | `/resume-command` | Generate the terminal command for the current Lane; avoid driving one native session from terminal and WeChat simultaneously |
 | `/notify` | Show the current notification mode and available values |
-| `/notify quiet\|normal\|verbose` | Select critical results only, standard tool progress, or detailed heartbeats |
-| `/watch` | Switch quickly to `verbose`; `/mute` switches to `quiet` |
+| `/notify quiet\|normal\|verbose` | Persist the default notification policy: critical only, standard summaries, or detailed summaries |
+| `/watch` | Temporarily use `verbose` for the active task (or next task when idle), then restore the default |
+| `/mute` | Temporarily use `quiet` for the active task (or next task when idle), then restore the default |
 | `/review [codex\|claude-code] [focus]` | Ask the selected agent to review the current worktree under `read-only`; defaults to the other agent |
 | `/handoff [codex\|claude-code] [goal]` | Explicitly route the current workspace and next goal to the selected agent; defaults to the other agent |
 | `/pwd` | Show the current workspace |
@@ -226,7 +227,11 @@ Bridge commands are recognized only in messages with **no attachments**. Command
 
 ### Notifications and native interactions
 
-`normal` is the default: coalesced tool progress remains visible while the long-task heartbeat drops to once every three minutes. `verbose` uses a five-second tool-progress interval and a 45-second heartbeat for temporary observation. `quiet` suppresses tool progress and heartbeats, but final results, errors, native input requests, and confirmation requests still arrive.
+`normal` is the default: the first significant operation appears immediately, then commands, reads, searches, writes, network calls, and unknown tools are summarized in 30-second windows. Equivalent commands are deduplicated, routine reads/searches are counted, and ordinary progress is limited to eight messages per task. `verbose` uses five-second windows with more representative operations plus a 45-second heartbeat; it still batches instead of sending every command. `quiet` suppresses ordinary summaries and heartbeats, while failures, final results, native input requests, and confirmation requests still arrive.
+
+`/notify <mode>` persists the long-term default. `/watch` and `/mute` are temporary overrides for the active task; when idle, they apply to the next task. The override disappears automatically on completion, and `/status` shows both default and temporary state.
+
+Aggregation does not depend on an exhaustive command allowlist. Every structured tool event enters bounded counters; recognized common commands improve representative summaries, while unknown commands and custom tools fall back to an “other” count with a sample. A non-zero exit or failed result is correlated to its start event and sent immediately, with repeated failures deduplicated.
 
 When Codex structured output contains an input/approval item, or Claude Code emits `AskUserQuestion` / `ExitPlanMode`, WeClaudex shows the native request and task ID in WeChat. The bridge does not approve permissions for the agent or imitate its permission engine. Whether the current non-interactive CLI turn exits after the request depends on that upstream version; your WeChat reply continues the same native session as its next turn rather than being injected into a still-running tool call.
 
@@ -388,8 +393,11 @@ Settings saved by WeChat commands generally take precedence over default environ
 | `WECHAT_BRIDGE_SEND_CRITICAL_RESERVE` | `512` | Durable chunk capacity reserved for completed Agent replies; a new Agent does not start if it cannot reserve enough |
 | `WECHAT_BRIDGE_REPLY_CHUNK_LENGTH` | `1200` | Long-reply chunk length in characters; minimum 200 |
 | `WECHAT_BRIDGE_TYPING_HEARTBEAT_MS` | `15000` | WeChat typing-state heartbeat; set to `0` to disable the heartbeat |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `normal: 15000` / `verbose: 5000` | Minimum interval between tool-progress messages |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `3` | Maximum tool-progress items coalesced per update |
+| `WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS` | `30000` | Standard-mode execution-summary window |
+| `WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS` | `5000` | Verbose-mode execution-summary window |
+| `WECHAT_BRIDGE_NORMAL_PROGRESS_BUDGET` | `8` | Maximum ordinary normal-mode updates per task; critical failures remain visible |
+| `WECHAT_BRIDGE_VERBOSE_PROGRESS_BUDGET` | `24` | Maximum ordinary verbose-mode updates per task |
+| `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `4` | Representative operations shown in one summary; remaining work is still counted and folded |
 | `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `quiet: 0` / `normal: 180000` / `verbose: 45000` | Override the long-running task status interval; set to `0` to disable |
 
 ### Login, files, and advanced settings

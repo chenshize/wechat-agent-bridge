@@ -58,7 +58,29 @@ function contextualDetail(event) {
     "url",
     "description",
   ]);
-  return bounded(Array.isArray(detail) ? detail.join(", ") : detail);
+  return bounded(redactCommand(Array.isArray(detail) ? detail.join(", ") : detail));
+}
+
+function toolCategory(name) {
+  const value = String(name || "").toLowerCase();
+  if (/bash|command|shell/.test(value)) return "command";
+  if (/edit|write|patch|file_change/.test(value)) return "write";
+  if (/grep|glob|find|search/.test(value)) return "search";
+  if (/read|list/.test(value)) return "read";
+  if (/web|http|fetch/.test(value)) return "web";
+  return "other";
+}
+
+function commandFingerprint(command) {
+  const parts = compact(command).split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).join(" ").toLowerCase();
+}
+
+function significantCommand(command) {
+  const value = compact(command).toLowerCase();
+  if (/^(?:pwd|ls|find|rg|grep|cat|head|tail|wc|which)(?:\s|$)/.test(value)) return false;
+  if (/^git\s+(?:status|diff|log|show)(?:\s|$)/.test(value)) return false;
+  return Boolean(value);
 }
 
 function progressIcon(name) {
@@ -72,9 +94,7 @@ function progressIcon(name) {
 }
 
 export function formatToolProgress(event) {
-  const name = bounded(event?.name || "tool", 120);
-  const isCommand = /bash|command|shell/i.test(name);
-  const detail = isCommand ? commandDetail(event) : contextualDetail(event);
+  const { name, isCommand, detail } = describeToolProgress(event);
   if (isCommand && detail) {
     return `${progressIcon(name)} 正在执行命令：\n${detail}\n请稍等…`;
   }
@@ -82,4 +102,36 @@ export function formatToolProgress(event) {
     return `${progressIcon(name)} 正在执行：${name}\n目标：${detail}\n请稍等…`;
   }
   return `${progressIcon(name)} 正在执行：${name}\n请稍等…`;
+}
+
+export function describeToolProgress(event) {
+  const name = bounded(event?.name || "tool", 120);
+  const category = toolCategory(name);
+  const isCommand = category === "command";
+  const detail = isCommand ? commandDetail(event) : contextualDetail(event);
+  const fingerprint = isCommand
+    ? `${category}:${commandFingerprint(detail) || name.toLowerCase()}`
+    : `${category}:${name.toLowerCase()}`;
+  return {
+    name,
+    category,
+    isCommand,
+    detail,
+    fingerprint,
+    significant: category === "command"
+      ? significantCommand(detail)
+      : ["write", "web", "other"].includes(category),
+  };
+}
+
+export function formatToolFailure(startEvent, resultEvent) {
+  const descriptor = describeToolProgress(startEvent || resultEvent);
+  const exitCode = resultEvent?.exitCode ?? resultEvent?.exit_code ??
+    resultEvent?.raw?.item?.exit_code ?? resultEvent?.raw?.exit_code;
+  const title = descriptor.isCommand ? "⚠️ 命令执行失败" : `⚠️ 工具执行失败：${descriptor.name}`;
+  const lines = [title];
+  if (descriptor.detail) lines.push(`${descriptor.isCommand ? "命令" : "目标"}：${descriptor.detail}`);
+  if (exitCode !== undefined && exitCode !== null && exitCode !== "") lines.push(`退出码：${exitCode}`);
+  lines.push("Agent 正在继续处理。 ");
+  return lines.join("\n").trim();
 }

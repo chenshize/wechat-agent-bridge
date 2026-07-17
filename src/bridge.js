@@ -19,7 +19,6 @@ import { PeerTaskQueue } from "./inbound-queue.js";
 import { InboxStore } from "./inbox-store.js";
 import { buildCollaborationTask } from "./collaboration.js";
 import { PollBackoff, delay, messageIdentity } from "./poll-runtime.js";
-import { formatToolProgress } from "./progress.js";
 import { anonymousPeerId, appendRunLog } from "./run-log.js";
 import { JsonPendingStore, SendScheduler } from "./send-scheduler.js";
 import {
@@ -28,8 +27,8 @@ import {
   notificationModeLabel,
   normalizeNotificationMode,
   progressHeartbeatMs,
-  shouldRelayToolProgress,
 } from "./notifications.js";
+import { ProgressAggregator } from "./progress-aggregator.js";
 import {
   acquireInstanceLock,
   agentLaneIdentity,
@@ -298,6 +297,7 @@ export class WechatAgentBridge {
     this.stopping = false;
     this.pollAbort = new AbortController();
     this.activeAgents = new Map();
+    this.notificationOverrides = new Map();
     this.latestContext = new Map();
     this.claimedInbox = new Set();
     this.inbox = new InboxStore(account.accountId);
@@ -659,31 +659,44 @@ export class WechatAgentBridge {
     markMeaningfulActivity,
     shouldSaveSession,
   }) {
-    const pending = [];
-    const minIntervalMs = envInteger(
-      "WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS",
-      notificationMode === "verbose" ? 5000 : 15_000,
-      { min: 500 },
-    );
-    const maxItems = envInteger("WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS", 3, { min: 1 });
+    const aggregator = new ProgressAggregator();
+    let mode = normalizeNotificationMode(notificationMode);
+    const normalIntervalMs = envInteger("WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS", 30_000, { min: 1000 });
+    const verboseIntervalMs = envInteger("WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS", 5000, { min: 500 });
+    const normalBudget = envInteger("WECHAT_BRIDGE_NORMAL_PROGRESS_BUDGET", 8, { min: 1 });
+    const verboseBudget = envInteger("WECHAT_BRIDGE_VERBOSE_PROGRESS_BUDGET", 24, { min: 1 });
+    const maxExamples = envInteger("WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS", 4, { min: 1 });
     const seenInteractions = new Set();
-    let lastSentAt = 0;
+    let lastSentAt = Date.now();
+    let progressMessagesSent = 0;
+    let firstSignificantSent = false;
     let timer;
     let closed = false;
     let savedSessionRef = laneSessionRef(loadAgentLane(identity));
 
+    const intervalMs = () => mode === "verbose" ? verboseIntervalMs : normalIntervalMs;
+    const budget = () => mode === "verbose" ? verboseBudget : normalBudget;
+
+    const schedule = () => {
+      if (closed || mode === "quiet" || !aggregator.hasPending() || progressMessagesSent >= budget() || timer) return;
+      const waitMs = Math.max(0, intervalMs() - (Date.now() - lastSentAt));
+      timer = setTimeout(() => void flush(), waitMs);
+    };
+
     const flush = async () => {
       timer = undefined;
-      if (closed || !pending.length) return;
-      const waitMs = Math.max(0, minIntervalMs - (Date.now() - lastSentAt));
+      if (closed || mode === "quiet" || !aggregator.hasPending() || progressMessagesSent >= budget()) return;
+      const waitMs = Math.max(0, intervalMs() - (Date.now() - lastSentAt));
       if (waitMs) {
         timer = setTimeout(() => void flush(), waitMs);
         return;
       }
-      const unique = [...new Set(pending.splice(0))].slice(-maxItems);
-      if (!unique.length) return;
+      const summary = aggregator.takeSummary(mode, { maxExamples });
+      if (!summary) return;
       lastSentAt = Date.now();
-      await this.safeSendText(peerId, context, unique.join("\n"), { durable: false });
+      progressMessagesSent += 1;
+      await this.safeSendText(peerId, context, summary, { durable: false });
+      schedule();
     };
 
     const onEvent = (event) => {
@@ -718,20 +731,48 @@ export class WechatAgentBridge {
           }
         }
       }
-      if (event?.type === "tool_use" && shouldRelayToolProgress(notificationMode)) {
-        pending.push(formatToolProgress(event));
-        if (!timer) timer = setTimeout(() => void flush(), 0);
+      const progress = aggregator.record(event);
+      if (progress.failure && progress.immediate) {
+        void this.safeSendText(
+          peerId,
+          context,
+          `${taskId ? `任务 ${taskId}\n` : ""}${progress.immediate}`,
+          { durable: true },
+        );
+      }
+      if (event?.type === "tool_use") {
+        if (mode === "quiet") {
+          aggregator.discardPending();
+          return;
+        }
+        if (mode === "normal" && progress.significant && !firstSignificantSent && progressMessagesSent < budget()) {
+          firstSignificantSent = true;
+          aggregator.suppressSample(progress.descriptor?.fingerprint);
+          lastSentAt = Date.now();
+          progressMessagesSent += 1;
+          void this.safeSendText(peerId, context, aggregator.immediateFirstMessage(event), { durable: false });
+        }
+        schedule();
       }
     };
 
     return {
       onEvent,
       onOutput: () => markOutput?.(),
+      setMode(nextMode) {
+        mode = normalizeNotificationMode(nextMode);
+        if (timer) clearTimeout(timer);
+        timer = undefined;
+        if (mode === "quiet") aggregator.discardPending();
+        else schedule();
+        return mode;
+      },
+      mode: () => mode,
       close() {
         closed = true;
         if (timer) clearTimeout(timer);
         timer = undefined;
-        pending.length = 0;
+        aggregator.discardPending();
       },
     };
   }
@@ -754,23 +795,26 @@ export class WechatAgentBridge {
     const runKey = crypto.randomUUID();
     const startedAt = Date.now();
     let lastOutputAt = startedAt;
+    let relay;
+    let progressTimer;
+    const defaultNotificationMode = normalizeNotificationMode(loadPeerRuntime(statePeerId).notificationMode);
+    const pendingNotificationOverride = this.notificationOverrides.get(peerId);
+    const notificationMode = normalizeNotificationMode(pendingNotificationOverride || defaultNotificationMode);
     const taskState = {
       task: null,
       relay: null,
       identity,
       provider,
+      notificationMode,
+      temporaryNotificationMode: Boolean(pendingNotificationOverride),
       stopRequested: false,
       shutdownRequested: false,
       suppressSessionSave: false,
     };
     const batchInboxIds = batch.map((item) => item?.inboxId).filter(Boolean);
     const taskId = taskPublicId(batchInboxIds[0] || runKey);
-    const notificationMode = normalizeNotificationMode(loadPeerRuntime(statePeerId).notificationMode);
     if (batchInboxIds.length) this.inbox.markMany(batchInboxIds, "running");
-    this.activeAgents.set(peerId, taskState);
     let stopFeedback;
-    let relay;
-    let progressTimer;
     let inboxFailure;
     let agentCompleted = false;
     let meaningfulAgentActivity = false;
@@ -778,6 +822,32 @@ export class WechatAgentBridge {
     let completionDelivered = false;
     let completionInboxId = "";
     let finalReplyReservation;
+    const resetProgressHeartbeat = () => {
+      if (progressTimer) clearInterval(progressTimer);
+      progressTimer = undefined;
+      const interval = progressHeartbeatMs(
+        taskState.notificationMode,
+        process.env.WECHAT_BRIDGE_PROGRESS_INTERVAL_MS,
+      );
+      if (!interval) return;
+      progressTimer = setInterval(() => {
+        const elapsed = formatElapsed(Date.now() - startedAt);
+        const idle = formatElapsed(Date.now() - lastOutputAt);
+        void this.safeSendText(
+          peerId,
+          context,
+          `任务 ${taskId} 进行中，已运行 ${elapsed}。最近 ${idle} 内有执行活动。发送 /stop 可以结束当前任务。`,
+          { durable: false },
+        );
+      }, interval);
+    };
+    taskState.setNotificationMode = (nextMode) => {
+      taskState.notificationMode = normalizeNotificationMode(nextMode);
+      taskState.relay?.setMode(taskState.notificationMode);
+      resetProgressHeartbeat();
+      return taskState.notificationMode;
+    };
+    this.activeAgents.set(peerId, taskState);
     const replyChunkLength = envInteger(
       "WECHAT_BRIDGE_REPLY_CHUNK_LENGTH",
       DEFAULT_REPLY_CHUNK_LENGTH,
@@ -804,22 +874,7 @@ export class WechatAgentBridge {
         shouldSaveSession: () => !taskState.suppressSessionSave,
       });
       taskState.relay = relay;
-      const progressIntervalMs = progressHeartbeatMs(
-        notificationMode,
-        process.env.WECHAT_BRIDGE_PROGRESS_INTERVAL_MS,
-      );
-      progressTimer = progressIntervalMs
-        ? setInterval(() => {
-            const elapsed = formatElapsed(Date.now() - startedAt);
-            const idle = formatElapsed(Date.now() - lastOutputAt);
-            void this.safeSendText(
-              peerId,
-              context,
-              `任务 ${taskId} 进行中，已运行 ${elapsed}。最近 ${idle} 内有执行活动。发送 /stop 可以结束当前任务。`,
-              { durable: false },
-            );
-          }, progressIntervalMs)
-        : undefined;
+      resetProgressHeartbeat();
 
       safeLog("run_started", {
         peer: anonymousPeerId(peerId),
@@ -888,7 +943,7 @@ export class WechatAgentBridge {
         usage: result.usage,
         artifactCount: artifacts.length,
       });
-      const replyWithReceipt = notificationMode === "quiet"
+      const replyWithReceipt = taskState.notificationMode === "quiet"
         ? result.reply
         : `${result.reply}\n\n${receipt}`;
       const completedChunks = numberedReplyChunks(replyWithReceipt, replyChunkLength);
@@ -980,6 +1035,7 @@ export class WechatAgentBridge {
     } finally {
       if (progressTimer) clearInterval(progressTimer);
       relay?.close();
+      if (taskState.temporaryNotificationMode) this.notificationOverrides.delete(peerId);
       finalReplyReservation?.release();
       if (this.activeAgents.get(peerId) === taskState) this.activeAgents.delete(peerId);
       if (stopFeedback) await stopFeedback();
@@ -1021,6 +1077,7 @@ export class WechatAgentBridge {
       active.task?.cancel();
     }
     this.takePendingTasks(peerId);
+    this.notificationOverrides.delete(peerId);
     const cancelledReplies = this.cancelCompletedReplies(peerId, "completed reply cancelled by /new");
     const statePeerId = this.statePeerId(peerId);
     const runtime = loadPeerRuntime(statePeerId);
@@ -1046,6 +1103,7 @@ export class WechatAgentBridge {
         active.task?.cancel();
       }
       const cleared = this.takePendingTasks(peerId).length;
+      this.notificationOverrides.delete(peerId);
       const cancelledReplies = this.cancelCompletedReplies(peerId, "completed reply cancelled by /stop");
       if (active) {
         await this.safeSendText(
@@ -1086,12 +1144,19 @@ export class WechatAgentBridge {
       const lane = loadAgentLane(identity);
       const queueStatus = this.taskQueue.status(peerId);
       const artifacts = loadRecentArtifacts(statePeerId, runtime.cwd);
+      const activeTask = this.activeAgents.get(peerId);
+      const pendingOverride = this.notificationOverrides.get(peerId);
       await this.sendReplyChunks(peerId, context, [
         `当前后端：${providerLabel(runtime.provider)}`,
         `当前模型：${runtimeModel(runtime)}`,
         `思考级别：${runtimeEffort(runtime)}`,
         `当前权限：${accessModeLabel(runtime.accessMode)}`,
-        `通知模式：${notificationModeLabel(runtime.notificationMode)}`,
+        `默认通知：${notificationModeLabel(runtime.notificationMode)}`,
+        activeTask?.temporaryNotificationMode
+          ? `当前任务通知：${notificationModeLabel(activeTask.notificationMode)}（临时）`
+          : !activeTask && pendingOverride
+            ? `下一任务通知：${notificationModeLabel(pendingOverride)}（临时）`
+            : "",
         `工作区：${runtime.cwd}`,
         `Agent Lane：${laneSessionRef(lane) ? `已连接（${maskValue(laneSessionRef(lane))}）` : "待创建"}`,
         `任务队列：${queueStatus.active ? "执行中" : "空闲"}，等待 ${queueStatus.pending} 条`,
@@ -1099,7 +1164,7 @@ export class WechatAgentBridge {
         `待接纳完成回复：${this.inbox.completed(peerId).length} 条`,
         `待补发消息：${this.sender.listPending({ userId: peerId }).length}`,
         `最近产物：${artifacts.length} 个`,
-      ].join("\n"));
+      ].filter(Boolean).join("\n"));
       return;
     }
 
@@ -1145,12 +1210,25 @@ export class WechatAgentBridge {
     }
 
     if (["notify", "watch", "mute"].includes(command.name)) {
+      const temporary = command.name === "watch" || command.name === "mute";
       const requested = command.name === "watch" ? "verbose" : command.name === "mute" ? "quiet" : command.argument;
-      if (!requested) {
+      const activeTask = this.activeAgents.get(peerId);
+      const pendingOverride = this.notificationOverrides.get(peerId);
+      if (!requested && command.name === "notify") {
         await this.safeSendText(
           peerId,
           context,
-          `当前通知：${notificationModeLabel(runtime.notificationMode)}\n可选：quiet、normal、verbose\n示例：/notify normal`,
+          [
+            `默认通知：${notificationModeLabel(runtime.notificationMode)}`,
+            activeTask?.temporaryNotificationMode
+              ? `当前任务：${notificationModeLabel(activeTask.notificationMode)}（临时）`
+              : !activeTask && pendingOverride
+                ? `下一任务：${notificationModeLabel(pendingOverride)}（临时）`
+                : "",
+            "可选：quiet、normal、verbose",
+            "长期切换：/notify normal",
+            "单次覆盖：/watch 或 /mute",
+          ].filter(Boolean).join("\n"),
         );
         return;
       }
@@ -1158,8 +1236,25 @@ export class WechatAgentBridge {
         await this.safeSendText(peerId, context, "不支持的通知模式。可选：quiet、normal、verbose");
         return;
       }
+      if (temporary) {
+        const mode = normalizeNotificationMode(requested);
+        this.notificationOverrides.set(peerId, mode);
+        if (activeTask) {
+          activeTask.temporaryNotificationMode = true;
+          activeTask.setNotificationMode?.(mode);
+          await this.safeSendText(peerId, context, `当前任务临时切换为：${notificationModeLabel(mode)}。任务结束后自动恢复默认通知。`);
+        } else {
+          await this.safeSendText(peerId, context, `下一条任务临时使用：${notificationModeLabel(mode)}。任务结束后自动恢复默认通知。`);
+        }
+        return;
+      }
       const saved = savePeerNotificationMode(statePeerId, requested);
-      await this.safeSendText(peerId, context, `已切换通知模式：${notificationModeLabel(saved.notificationMode)}`);
+      this.notificationOverrides.delete(peerId);
+      if (activeTask) {
+        activeTask.temporaryNotificationMode = false;
+        activeTask.setNotificationMode?.(saved.notificationMode);
+      }
+      await this.safeSendText(peerId, context, `已更新默认通知：${notificationModeLabel(saved.notificationMode)}`);
       return;
     }
 

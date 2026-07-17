@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.7.2 - 2026-07-17
+
+- Replaced per-tool progress delivery with bounded execution summaries: normal mode emits at most one changed summary per 30 seconds with an eight-message task budget, while verbose mode aggregates five-second windows.
+- Count every structured tool event, deduplicate representative commands, fold high-volume reads/searches, and retain a generic fallback for unknown commands and custom tools.
+- Send the first significant normal-mode operation immediately and correlate failed tool results back to their starting command; repeated failures are deduplicated and immediate failures remain visible in quiet mode.
+- Changed `/watch` and `/mute` into in-memory overrides for the active or next task that automatically restore the persisted `/notify` default when the task finishes.
+- Bounded tracked samples, active tool IDs, command detail length, immediate failure count, and per-task progress messages so command-heavy tasks cannot grow memory or WeChat traffic without limit.
+
 ## 0.7.1 - 2026-07-17
 
 - Show the redacted, bounded command text for Codex `command_execution` and Claude Code Bash progress instead of only the generic tool name.

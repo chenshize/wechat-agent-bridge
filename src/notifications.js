@@ -8,8 +8,8 @@ export function normalizeNotificationMode(value, fallback = "normal") {
 
 export function notificationModeLabel(mode) {
   if (mode === "quiet") return "安静（只发关键结果）";
-  if (mode === "verbose") return "详细（工具进度与心跳）";
-  return "标准（工具进度，减少心跳）";
+  if (mode === "verbose") return "详细（5 秒执行摘要）";
+  return "标准（30 秒阶段摘要）";
 }
 
 export function shouldRelayToolProgress(mode) {

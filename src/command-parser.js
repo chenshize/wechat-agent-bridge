@@ -117,7 +117,7 @@ export function commandHelpText() {
     "/sessions  查看已保存的原生 Agent 会话",
     "/resume-command  获取当前会话的终端恢复命令",
     "/notify [quiet|normal|verbose]  查看或调整通知",
-    "/watch · /mute  快速切换详细或安静通知",
+    "/watch · /mute  临时观察或静音当前/下一任务",
     "/review [codex|claude-code] [重点]  让另一 Agent 只读复核当前工作区",
     "/handoff [codex|claude-code] [目标]  将当前工作区显式交给另一 Agent",
     "/retry  重新执行上次异常中断的任务",

@@ -202,8 +202,9 @@ weclaudex run
 | `/sessions` | 查看当前发送者保存的原生 Codex thread 与 Claude Code session |
 | `/resume-command` | 获取当前 Lane 的终端恢复命令；避免终端和微信同时操作同一 Session |
 | `/notify` | 查看当前通知模式和可选项 |
-| `/notify quiet\|normal\|verbose` | 切换为仅关键结果、标准工具进度或详细心跳 |
-| `/watch` | 快速切换到 `verbose`；`/mute` 快速切换到 `quiet` |
+| `/notify quiet\|normal\|verbose` | 长期设置默认通知：仅关键结果、标准摘要或详细摘要 |
+| `/watch` | 当前任务（空闲时为下一任务）临时使用 `verbose`，完成后恢复默认模式 |
+| `/mute` | 当前任务（空闲时为下一任务）临时使用 `quiet`，完成后恢复默认模式 |
 | `/review [codex\|claude-code] [重点]` | 让指定 Agent 以 `read-only` 权限独立复核当前工作区；省略 Agent 时使用另一方 |
 | `/handoff [codex\|claude-code] [目标]` | 把当前工作区和后续目标显式交给指定 Agent；省略 Agent 时使用另一方 |
 | `/pwd` | 查看当前工作区 |
@@ -226,7 +227,11 @@ weclaudex run
 
 ### 通知与原生交互
 
-`normal` 是默认通知模式：保留经过合并的工具进度，并把长任务心跳降低到三分钟一次。`verbose` 适合临时观察任务，使用五秒工具进度间隔和 45 秒心跳；`quiet` 不发工具进度和心跳，但最终结果、错误、Agent 请求输入和请求确认仍然发送。
+`normal` 是默认通知模式：第一条关键操作立即显示，之后把命令、读取、搜索、修改、联网和未知工具按 30 秒窗口汇总；相同命令去重，普通读取/搜索只计数，每个任务最多发送 8 条常规进度。`verbose` 使用五秒窗口显示更多代表操作，并保留 45 秒心跳；它仍然聚合，而不是逐命令刷屏。`quiet` 不发常规摘要和心跳，但失败、最终结果、Agent 请求输入和请求确认仍然发送。
+
+`/notify <mode>` 保存长期默认值。`/watch` 和 `/mute` 只是当前任务的临时覆盖；空闲时发送则作用于下一条任务，完成后自动恢复默认值。`/status` 会分别显示默认通知和临时覆盖。
+
+进度聚合不依赖一份穷举命令白名单：所有结构化工具事件都会进入有界计数；能识别的常见命令提供更好的代表摘要，未知命令和自定义工具进入“其他”并保留样本。非零退出码或失败状态通过工具事件 ID 关联原命令并立即通知，重复失败会去重。
 
 当 Codex 的结构化输出包含输入/审批请求，或 Claude Code 发出 `AskUserQuestion` / `ExitPlanMode` 事件时，WeClaudex 会在微信中显示原生请求和任务编号。桥不会替 Agent 批准权限，也不会模拟其权限引擎。当前非交互 CLI 是否在请求后结束由对应版本决定；你的微信回复会作为同一原生 Session 的下一轮继续，而不是注入仍在运行的工具调用。
 
@@ -388,8 +393,11 @@ WECHAT_BRIDGE_TO='user@im.wechat' weclaudex send-file /absolute/path/to/report.p
 | `WECHAT_BRIDGE_SEND_CRITICAL_RESERVE` | `512` | 为已完成 Agent 回复预留的耐久分片容量；空间不足时不会启动新 Agent |
 | `WECHAT_BRIDGE_REPLY_CHUNK_LENGTH` | `1200` | 长回复分片字符数，最小 200 |
 | `WECHAT_BRIDGE_TYPING_HEARTBEAT_MS` | `15000` | 微信输入状态心跳；`0` 关闭心跳 |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MIN_INTERVAL_MS` | `normal: 15000` / `verbose: 5000` | 工具进度消息最小间隔 |
-| `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `3` | 每次工具进度合并的最多项目数 |
+| `WECHAT_BRIDGE_NORMAL_PROGRESS_INTERVAL_MS` | `30000` | 标准模式执行摘要窗口 |
+| `WECHAT_BRIDGE_VERBOSE_PROGRESS_INTERVAL_MS` | `5000` | 详细模式执行摘要窗口 |
+| `WECHAT_BRIDGE_NORMAL_PROGRESS_BUDGET` | `8` | 单任务标准常规进度消息上限；关键失败不受此上限隐藏 |
+| `WECHAT_BRIDGE_VERBOSE_PROGRESS_BUDGET` | `24` | 单任务详细常规进度消息上限 |
+| `WECHAT_BRIDGE_STREAM_PROGRESS_MAX_ITEMS` | `4` | 每条摘要最多展示的代表操作；其余仍计数并折叠 |
 | `WECHAT_BRIDGE_PROGRESS_INTERVAL_MS` | `quiet: 0` / `normal: 180000` / `verbose: 45000` | 覆盖长任务状态提醒间隔；`0` 关闭 |
 
 ### 登录、文件和高级设置

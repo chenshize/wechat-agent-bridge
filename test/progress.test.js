@@ -36,4 +36,7 @@ test("non-command tools show a concise target and long commands are bounded", ()
   const message = formatToolProgress({ name: "Bash", input: { command: `echo ${"x".repeat(1000)}` } });
   assert(message.length < 350);
   assert.match(message, /…/);
+  const web = formatToolProgress({ name: "WebFetch", input: { url: "https://user:password@example.com/private" } });
+  assert.doesNotMatch(web, /:password@/);
+  assert.match(web, /user:<redacted>@example\.com/);
 });
